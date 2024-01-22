@@ -1,0 +1,377 @@
+// RGS Code
+// Risk Guidance System Tracking System
+
+// Amibroker 6.30.5
+
+/////////// This section uses the custom backtest procedure to create RGS metrics
+
+SetCustomBacktestProc( "" );
+SetBacktestMode( backtestRegularRawMulti   );
+
+/* Now custom-backtest procedure follows */
+
+if( Status( "action" ) == actionPortfolio )
+{
+    bo = GetBacktesterObject();
+
+    bo.Backtest(); // run default backtest procedure
+
+	fh = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\RGS_Output.csv", "w" );
+    fj = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\OpenTrades.csv", "w" );    
+
+    if( fh )
+    {
+        // iterate through closed trades first
+        for( trade = bo.GetFirstTrade(); trade; trade = bo.GetNextTrade() )
+        {
+            // create csv output line
+            //csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + NumToStr( trade.EntryPrice, 1.2 ) + "," + DateTimeToStr( trade.ExitDateTime ) + "," + NumToStr( trade.ExitPrice, 1.2 ) + "," + NumToStr( Max(-3, trade.GetPercentProfit), 1.2 ) + "," + NumToStr( trade.GetMAE, 1.2 ) + "," + NumToStr( trade.GetMFE, 1.2 ) + "\n";
+            
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + StrFormat("%.2f,", trade.EntryPrice) + DateTimeToStr( trade.ExitDateTime ) + "," + StrFormat("%.2f, %.2f, %.2f, %.2f\n", trade.ExitPrice, trade.GetPercentProfit, trade.GetMAE, trade.GetMFE);
+
+            fputs( csvout, fh );
+
+        }
+
+        // iterate through eventually still open positions
+        for( trade = bo.GetFirstOpenPos(); trade; trade = bo.GetNextOpenPos() )
+        {
+            // create csv output line
+            //csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + NumToStr( trade.EntryPrice, 1.2 ) + "," + DateTimeToStr( trade.ExitDateTime ) + "," + NumToStr( trade.ExitPrice, 1.2 ) + "," + NumToStr( Max(-3, trade.GetPercentProfit), 1.2 ) + "," + NumToStr( trade.GetMAE, 1.2 ) + "," + NumToStr( trade.GetMFE, 1.2 ) + "\n";
+            
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + StrFormat("%.2f,", trade.EntryPrice) + DateTimeToStr( trade.ExitDateTime ) + "," + StrFormat("%.2f, %.2f, %.2f, %.2f\n", trade.ExitPrice, trade.GetPercentProfit, trade.GetMAE, trade.GetMFE);
+
+            fputs( csvout, fh );
+            fputs( csvout, fj );
+        }
+    }
+
+    fclose( fh );
+    fclose( fj );
+    
+    // custom metrics
+    stats = bo.GetPerformanceStats(0);
+    WP = stats.GetValue("WinnersPercent")/100;
+    PL = stats.GetValue("WinnersAvgProfitPercent")/stats.GetValue("LosersAvgLossPercent");
+    bo.AddCustomMetric("Expectancy", -PL*WP -(1-WP), 1);
+}
+
+
+///////// BACKTEST PROCEDURE //
+
+dummy = Optimize("dummy", 0, 0, 4999, 1);
+
+SetTradeDelays(0,0,0,0);
+
+// Load CSV file
+file = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\RGS_Source.csv", "r" );
+
+// get date
+dt = DateTime();
+
+// init var
+Buy = Sell = DateBuy = BuyPrice = 0;
+
+// lookup CSV and current date to see if the stock is in the daily trading plan for the day
+
+if( file AND BarCount > 5)
+{
+    // discard header row
+    line = fgets( file );
+
+    index = 0;
+
+    while( ! feof( file ) ) // loop while not end of file
+    {
+        // extract current csv line
+        line = fgets( file );
+
+        // get ticker
+        Ticker = StrExtract( line, 1 );
+
+        if( Name() == Ticker)
+        {
+            // extract date and buy point
+			DateStr		= StrExtract( line, 0 );
+            RGSDate 	= StrToDateTime( DateStr );
+            RGSBP	  	= StrExtract( line, 4 );
+            RGSBP		= StrTrim( RGSBP, "$", 1 );
+            PivotPrice	= StrToNum( RGSBP );
+
+            // Check if breakout occurs
+            Breakout	= H >= PivotPrice;
+
+            // verify date is correct
+            DateBuy		= dt == RGSDate;
+
+            // check 1% limit not breached
+            Limit = O < 1.01 * PivotPrice;
+
+            // fix the buy price to the pivot price
+            for( i = index + 1; i < BarCount; i++ )
+			{
+				if (Buy[i] == 0)
+					Buy[i] = DateBuy[i] AND Breakout[i] AND Limit[i];// AND LastValue(Random()) > 0.50;
+				
+                if( Buy[i] == 1)
+                {
+                    BuyPrice[i] = PivotPrice;
+                    index = i;
+                }
+                else
+                {
+                    BuyPrice[i] += 0;
+                }
+			}
+				
+            //// EXIT RULES (//- means not implemented, //* means implemented)
+            
+            // Sell front-end of position if:		
+            //   Any time:
+            //*		- 2% stoploss hit
+
+            
+            // Sell back-end of position if:		
+			//   Any time:
+			//*		- 4% stoploss hit
+
+			
+			// Sell half of current position:		
+			// at +3R ~ 10%, set stop to 1% profit
+			// at +6R ~ 20%, set stop to 10% profit
+
+			// Sell balance of position:
+			// major trendline
+			
+            // stop settings
+            stopFrontInit		= 2;  	// front initial stop loss
+            stopBackInit		= 4;  	// back initial stop loss
+            FirstProfitTarget	= (stopFrontInit + stopBackInit)/2*6.67;	// profit % on half at 6.67R
+            SecondProfitTarget	= (stopFrontInit + stopBackInit)/2*2; 	// profit % on half at 2R
+            updatedstop1 		= 1;	// stop raise 
+            updatedstop2 		= 10;	// stop raise
+            
+            switchdate = 1.088033e+25;
+            
+            microSMA			= 10;	// SMA for stops
+            miniSMA				= 10;	// SMA for stops
+            smallSMA			= 20;	// SMA for stops
+            bigSMA				= 50;	// SMA for stops
+            SMAdays				= 10;	// SMA period above for stops
+            
+            // initializations to zero
+            stopFront			= 0;  	// moving stop on the front half
+            stopBack			= 0;  	// moving stop on the back half
+			priceatbuy 			= 0;	// buy price
+            highsincebuy 		= 0;	// high of trade since buy
+            barssincebuy 		= 0;	// trade length so far
+            highestclose		= 0;	// highest close of trade so far
+            profitPct			= 0;	// profit of open trade
+
+			// exit codes
+            sellfront			= False;
+            sellback			= False;
+            sellfirsthalf		= False;
+            sellhalf50			= False;
+            sellbalance			= False;
+            selltrail			= False;
+            RaiseSTOP			= False;
+            ProfitProtect		= False;
+            
+            // this tracks the position size normalized to original size
+            positionpct 	= 100;
+            
+            latch = False;
+
+			// loop through bars to see
+            for( j = 0; j < BarCount - index; j++ )
+            {
+				i = index + j;
+				
+				Datenow = DateTimeToStr(dt[i]);
+				
+                // check if there is a buy signal at the current bar
+                if( NOT latch AND Buy[ i ] == 1)
+                {
+                    priceatbuy = BuyPrice[ i ];
+                    index = i;
+                    latch = True;
+                }
+				
+				// process the sell guidance and stops for the current stock and RGS Source entry, assuming
+                if( priceatbuy > 0 AND NOT Buy[i] == 1)
+                {
+					// mark the price high (for close and high) and days in trade
+                    highsincebuy = Max( H[ i-1 ], highsincebuy );
+                    highestclose = Max( C[ i-1 ], highestclose );
+                    barssincebuy = BarsSince(Buy) + 1;
+                    
+                    // sell front half if front init stop
+                    stopFront = ( 1- stopFrontInit/100 )*priceatbuy;
+                    if (NOT sellfront AND L[i]  < stopFront)
+                    {
+						// set the flag to indicate front is sold
+						sellfront 		= True;
+						
+						// set the sell price to the stop assuming no slippage and scale out
+						//BuyPrice[i] 	= stopFront;
+						//Buy[i]			= sigScaleOut;
+						
+						// update fraction of position remaining
+						positionpct /= 2;
+                    }
+
+                    // sell back half if back init stop, implies remainder of stock is sold as front half is gone
+                    stopBack = ( 1- stopBackInit/100 )*priceatbuy;
+                    if (NOT sellback AND L[i]  < stopBack )
+                    {
+						// set the flag to indicate front is sold
+						sellback 		= True;
+						
+						// set the sell price to the stop assuming no slippage
+						SellPrice[i] 	= stopBack;
+						
+						// handle same day blowing through both stops
+						//if (sellfront && Buy[i] == sigScaleOut)
+						{
+							SellPrice[i] = (stopFront + stopBack)/2;
+							Buy[i]	  	 = 0;
+						}
+						
+						// update fraction of position remaining, which should be none at this point
+						positionpct = 0;
+                    }
+                    
+                    // sell half at profit targets
+                    profitPct  	= ( H[i]/priceatbuy - 1 )*100;
+                    
+                    // modulate first profit stop based on date
+                    
+                    if (RGSDate < switchdate)
+                    {
+						sellhalfstop 	= FirstProfitTarget;
+						protstop 		= updatedstop2;
+					}
+					else
+					{
+						sellhalfstop 	= SecondProfitTarget;
+						protstop 		= updatedstop1;
+					}
+						
+                    // sell at first profit target
+                    if( NOT sellfirsthalf AND profitPct > sellhalfstop )
+                    {
+						// set the flag to indicate
+						sellfirsthalf = True;
+						
+						// set the sell price to the stop assuming no slippage
+						//BuyPrice[i] 	= priceatbuy*(1 + sellhalfstop/100);
+						//Buy[i]			= sigScaleOut;
+						
+						// update fraction of position remaining, which should be none at this point
+						positionpct /= 2;	
+                    }
+                    
+                    // check if condition to raise stop to 1% or 10% on rest is true
+                    else if (sellfirsthalf)
+						ProfitProtect = True;
+					
+                    // Protection Stop
+                    if( ProfitProtect AND (L[i]/priceatbuy-1)*100 < protstop) 
+                    {
+						sellbalance = True;
+						
+						SellPrice[i] 	= priceatbuy*(1 + (sellhalfstop/100 + protstop/100)/2);
+								
+						// update fraction of position remaining, which should be none at this point
+						positionpct = 0;
+						
+                    }                
+                    
+                    // sell half when it breaks it's major SMA, but only after gain of SecondProfitTarget
+                    if( sellfirsthalf )
+                    {
+						MAm = MA(C, microSMA);
+						MA0 = MA(C,  miniSMA);
+						MA1 = MA(C, smallSMA);
+						MA2 = MA(C,   bigSMA);
+						
+						// stock is following mini or smallMA, ie completely above it
+						
+						SumMAm = Sum(C > MAm, SMAdays);
+						SumMA0 = Sum(C > MA0, SMAdays);
+						SumMA1 = Sum(C > MA1, SMAdays);
+						Followm = SumMAm == SMAdays-1	AND Ref(SumMAm, -1) == SMAdays;
+						Follow0 = SumMA0 == SMAdays-1	AND Ref(SumMA0, -1) == SMAdays;
+						Follow1 = SumMA1 == SMAdays-1   AND Ref(SumMA1, -1) == SMAdays;
+
+						// if following smaller SMA, use this stop or else use larger SMA
+						if ( Followm[i] OR Follow0[i] OR Follow1[i] OR C[i] < MA2[i] )
+						{
+							sellbalance = True;
+							
+							// set the sell price to the stop assuming no slippage
+							if (Followm[i])
+								MAsell	= MAm[i-1];
+							else if (Follow0[i])
+								MAsell 	= MA0[i-1];
+							else if (Follow1[i])
+								MAsell 	= MA1[i-1];
+							else
+								MAsell	= MA2[i-1];
+								
+							SellPrice[i] = (priceatbuy*(1 + sellhalfstop/100) + MAsell)/2;
+							
+							// update fraction of position remaining, which should be none at this point
+							positionpct = 0;
+						
+						}
+					}
+                    		
+                    if( positionpct == 0 )
+					{
+						Buy[i] 	= False;
+						Sell[i] = True;
+						
+						// initializations to zero
+						stopFront			= 0;  	// moving stop on the front half
+						stopBack			= 0;  	// moving stop on the back half
+						stopTrail			= 0;	// trailing stop
+						priceatbuy 			= 0;	// buy price
+						highsincebuy 		= 0;	// high of trade since buy
+						barssincebuy 		= 0;	// trade length so far
+						highestclose		= 0;	// highest close of trade so far
+						profitPct			= 0;	// profit of open trade
+						speedstop			= 0;	// speestop value
+
+						// exit codes
+						sellfront			= False;
+						sellback			= False;
+						sellfirsthalf		= False;
+						sellhalf50			= False;
+						sellbalance			= False;
+						RaiseSTOP			= False;
+						ProfitProtect		= False;
+					}
+                }
+            }
+
+            if (RGSDate < switchdate)
+				SetPositionSize( 25, spsPercentOfEquity);
+			else
+				SetPositionSize( 25, spsPercentOfEquity);
+            
+            SetPositionSize( 16, spsShares);
+            //SetPositionSize( 50, spsPercentOfPosition * ( Buy == sigScaleOut ) ); // scale out 50% of position
+        }
+    }
+}
+else
+{
+    printf( "ERROR: file can not be found (does not exist)" );
+}
+
+SetSortColumns( 3 );
+
+// close the file
+fclose( file );

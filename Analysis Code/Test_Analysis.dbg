@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<AmiBroker-DebugContext CompactMode="1" FormatVersion="1">
+<Watches>
+<Watch Name="errorticker"/>
+<Watch Name="c"/>
+<Watch Name="tick"/>
+</Watches>
+<Breakpoints/>
+<Bookmarks/>
+</AmiBroker-DebugContext>

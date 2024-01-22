@@ -1,0 +1,197 @@
+// Amibroker Analysis
+// Dynamic MFE
+// Date: 2023/10/15
+// Amibroker 6.40.4
+
+// Hypothesis:
+// Using dynamic MFE to extract returns from rallies that could be short and long
+// Depending on MFE, the stops and positions sizes will be selected to ensure the maximum money can be extracted from a trade given the market conditions
+// That is, in good times, with large MFE, we can have larger stops, larger profit targers and thus smaller position-sizes and get a positive expectancy
+// In bad times, rallies will be short-lived, and thus we can have tighter stops, smaller profit targets and thus larger position sizes for positive exp
+// Aim for 2:1 trades on the first half, and more on the back half
+
+// Backtest mode
+// from AFL reference:
+// signal-based backtest, redundant (raw) entry signals are NOT removed, MULTIPLE positions per symbol will be open if BUY/SHORT signal is true for more than one bar and 
+// there are free funds, Sell/Cover exit all open positions on given symbol, Scale-In/Out work on all open positions of given symbol at once. 
+SetCustomBacktestProc( "" );
+SetBacktestMode( backtestRegularRawMulti   );
+
+// source directory for CSV data to be read and written
+CSVPath = "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\";
+
+/* Now custom-backtest procedure follows */
+if( Status( "action" ) == actionPortfolio )
+{
+	// low-level backtester required for advanced position sizing
+    bo = GetBacktesterObject();
+	bo.PreProcess();
+    
+    // Determine number of trades to base average
+    MFE_MAsize = 10;
+    
+    // Percent equity at risk for each trade
+    Trade_Risk_pct = 1;
+    
+    for ( bar = 0; bar < BarCount; bar++ )
+    {
+		//// determine current average MFE
+		/// MFE data init values
+		numtrades = 0;
+		MFE_trade = 0;
+		
+		// loop through closed trades
+		for( trade = bo.GetFirstTrade(); trade; trade = bo.GetNextTrade() )
+			MFE_trade[numtrades++] = trade.GetMFE;
+		
+		// loop through open trades
+		for( trade = bo.GetFirstOpenPos(); trade; trade = bo.GetNextOpenPos() )
+			MFE_trade[numtrades++] = trade.GetMFE;
+		
+		// get average trades for last MFE_MAsize trades
+		MFE_avg = 0;
+		for ( i = numtrades - 1; i >= numtrades - MFE_MAsize; i-- )
+			MFE_avg += MFE_trade[i] / MFE_MAsize;
+		
+		//// get position sizing and stop data
+		stop_size 	= MFE_avg / 2; 	// 2:1 trade philo on first half
+		curr_equity = bo.Equity;	// equity for current bar
+		
+		// entering and exiting positions
+		for ( sig = bo.GetFirstSignal(bar); sig; bo.GetNextSignal(bar) )
+		{
+			// calculate position size
+			Risk_per_trade_dol 	= bo.Equity * Trade_Risk_pct/100;
+			Risk_per_share_dol 	= sig.Price - sig.Price*( 1 - stop_size/100 );
+			Shares_per_trade	= Risk_per_trade_dol / Risk_per_share_dol;
+			Trade_Size			= Shares_per_trade * sig.Price;
+			
+			// enter long
+			if ( sig.IsEntry() )
+				bo.EnterTrade( i, sig.Symbol, sig.IsLong(), sig.Price, Trade_Size );
+			
+			// exit long (multiraw requires loop through all open positions)
+			if ( sig.IsExit() )
+				for ( openpos = bo.GetFirstOpenPos(); openpos; openpos = bo.GetNextOpenPos() )
+					bo.ExitTrade( i, sig.Symbol, sig.Price );
+		}
+		
+		
+    }
+    
+    // create output metrics for the RGS historical after backtest is done
+
+	fh = fopen( CSVPath + "RGS_Output.csv", "w" );
+    fj = fopen( CSVPath + "OpenTrades.csv", "w" );    
+
+    if( fh )
+    {
+        // iterate through closed trades first
+        for( trade = bo.GetFirstTrade(); trade; trade = bo.GetNextTrade() )
+        {            
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + StrFormat("%.2f,", trade.EntryPrice) + DateTimeToStr( trade.ExitDateTime ) + "," + StrFormat("%.2f, %.2f, %.2f, %.2f\n", trade.ExitPrice, trade.GetPercentProfit, trade.GetMAE, trade.GetMFE);
+
+            fputs( csvout, fh );
+
+        }
+
+        // iterate through eventually still open positions
+        for( trade = bo.GetFirstOpenPos(); trade; trade = bo.GetNextOpenPos() )
+        {            
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + StrFormat("%.2f,", trade.EntryPrice) + DateTimeToStr( trade.ExitDateTime ) + "," + StrFormat("%.2f, %.2f, %.2f, %.2f\n", trade.ExitPrice, trade.GetPercentProfit, trade.GetMAE, trade.GetMFE);
+
+            fputs( csvout, fh );
+            fputs( csvout, fj );
+        }
+    }
+
+    fclose( fh );
+    fclose( fj );
+    
+    // custom metrics
+    stats = bo.GetPerformanceStats(0);
+    WP = stats.GetValue("WinnersPercent")/100;
+    PL = stats.GetValue("WinnersAvgProfitPercent")/stats.GetValue("LosersAvgLossPercent");
+    bo.AddCustomMetric("Expectancy", -PL*WP -(1-WP), 1);
+}
+
+
+///////// BACKTEST PROCEDURE //
+
+dummy = Optimize("dummy", 0, 0, 4999, 1);
+
+SetTradeDelays(0,0,0,0);
+
+// Load CSV file
+file = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\RGS_Source.csv", "r" );
+
+// get date
+dt = DateTime();
+
+// init var
+Buy = Sell = DateBuy = BuyPrice = 0;
+
+// lookup CSV and current date to see if the stock is in the daily trading plan for the day
+
+if( file AND BarCount > 5)
+{
+    // discard header row
+    line = fgets( file );
+
+    index = 0;
+
+    while( ! feof( file ) ) // loop while not end of file
+    {
+        // extract current csv line
+        line = fgets( file );
+
+        // get ticker
+        Ticker = StrExtract( line, 1 );
+
+        if( Name() == Ticker)
+        {
+            // extract date and buy point
+			DateStr		= StrExtract( line, 0 );
+            RGSDate 	= StrToDateTime( DateStr );
+            RGSBP	  	= StrExtract( line, 4 );
+            RGSBP		= StrTrim( RGSBP, "$", 1 );
+            PivotPrice	= StrToNum( RGSBP );
+
+            // Check if breakout occurs
+            Breakout	= H >= PivotPrice;
+
+            // verify date is correct
+            DateBuy		= dt == RGSDate;
+
+            // check 1% limit not breached
+            Limit = O < 1.01 * PivotPrice;
+
+            // fix the buy price to the pivot price
+            for( i = index + 1; i < BarCount; i++ )
+			{
+				if (Buy[i] == 0)
+					Buy[i] = DateBuy[i] AND Breakout[i] AND Limit[i];// AND LastValue(Random()) > 0.50;
+				
+                if( Buy[i] == 1)
+                {
+                    BuyPrice[i] = PivotPrice;
+                    index = i;
+                }
+                else
+                {
+                    BuyPrice[i] += 0;
+                }
+			}
+		}
+        
+    }
+}
+else
+{
+    printf( "ERROR: file can not be found (does not exist)" );
+}
+
+SetSortColumns( 3 );
+
+// close the file
+fclose( file );

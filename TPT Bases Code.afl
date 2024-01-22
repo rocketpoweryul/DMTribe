@@ -1,0 +1,42 @@
+// TPT Base Scanner
+
+// mod-sum
+/*
+2021-06-03: MAM File Initiated
+*/
+
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+// trend filter
+TF = TrendFilter( L, H, O, C, V );
+
+// find a valid base
+VldCSBase  		= getCSBaseParam( L, H, O, C, "Validity"	);
+
+VldCSCapBase 	= getCSCapBaseParam( L, H, O, C, "Validity"	);
+
+VldPPBase		= getPPBaseParam( L, H,    "Validity"	) ;
+
+RS = StaticVarGet( "RS_" + Name() );
+
+Filter = (( ( VldCSBase OR VldCSCapBase ) AND RS > 89 ) OR ( VldPPBase AND RS > 94 ) OR ( (VldCSBase OR VldPPBase) AND BarCount < 300 )) AND TF;
+
+if( VldCSBase )
+    pattern = "CLASSIC";
+else
+    if( VldCSCapBase )
+        pattern = "CAP BASE";
+    else
+        if( VldPPBase )
+            pattern = "POWER";
+        else
+            pattern = "N/A";
+
+if (BarCount < 300)
+	pattern = "IPO";
+
+AddTextColumn( pattern, "Pattern" );
+
+SetSortColumns(-3);

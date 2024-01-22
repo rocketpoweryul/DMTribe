@@ -1,0 +1,30 @@
+// source info https://marketsmith.investors.com/special/stockguide-Q2-2019.pdf
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+RSL 	= C/Foreign("$SPX", "C"); // calculate the raw RS Line
+
+RSLHigh = LastValue(RSL) == HHV(RSL, 52*5); // RS Line new 52 week high
+
+TF 		= TrendFilter( L, H, O, C, V );
+
+
+// check if in base
+
+VldCSBase  		= getCSBaseParam(   L, H, O, C, "Validity"	);
+		
+VldPPBase		= getPPBaseParam(   L, H,    "Validity"	);
+
+if (VldCSBase)
+	pattern = "CS";
+else if (VldPPBase)
+	pattern = "PS";
+else
+	pattern = "No";
+
+Filter = RSLHigh AND TF;	
+AddTextColumn(pattern, "In Pattern?");
+AddTextColumn(WriteIf(BarCount < 252, "YES", "NO"), "IPO?");
+
+SetSortColumns(3);

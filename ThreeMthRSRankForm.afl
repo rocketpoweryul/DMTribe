@@ -1,0 +1,11 @@
+Filter = True;
+
+Tick = Name();
+
+RS  = StaticVarGet("RS_"  + Tick);
+RS3 = StaticVarGet("RS3_" + Tick);
+
+AddColumn(RS,  "12 Month RS", 1.0, IIf(RS3 >= 85, colorBlack, colorWhite), IIf(RS  >= 85, colorLime, colorRed));
+AddColumn(RS3, "03 Month RS", 1.0, IIf(RS  >= 85, colorBlack, colorWhite), IIf(RS3 >= 85, colorLime, colorRed));
+
+SetSortColumns(-4, -3, 1);

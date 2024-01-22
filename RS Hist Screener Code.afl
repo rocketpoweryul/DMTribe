@@ -1,0 +1,26 @@
+// TPT Base Scanner
+
+// mod-sum
+/*
+2021-06-03: MAM File Initiated
+*/
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+//genRS();
+
+// trend filter
+TF = TrendFilter( L, H, O, C, V );
+
+// get RS
+RS = StaticVarGet( "RS_" + Name() );
+
+RSAccel = (RS - Ref(RS, -4));
+
+Filter = TF AND (RS > 84) AND RSAccel > 1;
+
+AddColumn(RSAccel, "RS Accel", 1.2);
+
+SetSortColumns(-3);
+

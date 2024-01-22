@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<AmiBroker-Batch CompactMode="0">
+<Step>
+<Action>LoadProject</Action>
+<Param>C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\DMT Pivot Search.apx</Param>
+<Param2/>
+</Step>
+<Step>
+<Action>Explore</Action>
+<Param/>
+<Param2/>
+</Step>
+<Step>
+<Action>LoadProject</Action>
+<Param>C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\DMT RGS Analysis.apx</Param>
+<Param2/>
+</Step>
+<Step>
+<Action>Backtest</Action>
+<Param/>
+<Param2/>
+</Step>
+<Step>
+<Action>Export</Action>
+<Param>C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\RGSoutput.csv</Param>
+<Param2/>
+</Step>
+<Step>
+<Action>LoadProject</Action>
+<Param>C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\SP1500 SubIndex Rank.apx</Param>
+<Param2/>
+</Step>
+<Step>
+<Action>Explore</Action>
+<Param/>
+<Param2/>
+</Step>
+<Step>
+<Action>Say</Action>
+<Param>Daily Batch Complete, you asshole</Param>
+<Param2/>
+</Step>
+</AmiBroker-Batch>

@@ -1,0 +1,19 @@
+// Fuel Tank Exploration
+// By: Michael Angelo MUSTILLO
+// 2023-06-10
+// Ver 6.40.4
+
+// determine FuelTank Rating
+FTCapacity 	= Sum( V, 50 );
+FTAccumul 	= IIf( H - L == 0, 0, V * (( C - L ) - ( H - C )) / ( H - L ));
+FTFuel		= Sum( FTAccumul, 50 );
+
+CSMA50 = MA( C, 50 );
+
+FuelTank = round( ( IIf( FTCapacity == 0, 0, FTFuel/FTCapacity ) * 100 ) * IIf( C < CSMA50, 1, CSMA50 / C) );
+
+Filter = True;
+
+AddColumn(FuelTank, "Fuel Tank", 2.0, colorBlack, IIf(FuelTank > 19, colorLime, IIf(FuelTank > 0, colorOrange, IIf(FuelTank < 0, colorRed, colorWhite))));
+
+SetSortColumns(-3);

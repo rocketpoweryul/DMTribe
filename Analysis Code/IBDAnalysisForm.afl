@@ -1,0 +1,91 @@
+// IBD analyis
+// This just lists all stocks over 95 CR and adds all IBD columns to be able to scroll through charts
+// AB 6.40
+
+
+// function to return color for grade
+function getGradeColor(grade_str)
+{
+	// figure out color per grade string
+	switch( grade_str )
+	{
+		case "A+":
+		case "A":
+		case "A-":
+			thecolor = colorGreen;
+			break;
+		case "B+":
+		case "B":
+		case "B-":
+			thecolor = colorDarkYellow;
+			break;
+		case "C+":
+		case "C":
+		case "C-":
+			thecolor = colorOrange;
+			break;
+		case "D+":
+		case "D":
+		case "D-":
+			thecolor = colorRed;
+			break;
+		default:
+			thecolor = colorDefault;
+			break;
+	}
+	
+	// return the color required
+	return thecolor;
+}
+
+// get the ticker name
+Ticker = Name();
+
+//// get all static data for IBD ratings
+
+// numbers need conversion
+CR 		= StrToNum( StaticVarGetText( Ticker + "_IBD_CR"		));
+EPS		= StrToNum( StaticVarGetText( Ticker + "_IBD_EPS"		));
+RS		= StrToNum( StaticVarGetText( Ticker + "_IBD_RS" 		));
+IGR		= StrToNum( StaticVarGetText( Ticker + "_IBD_IGR"		));
+PTM 	= StrToNum( StaticVarGetText( Ticker + "_IBD_PTM"		));
+CYEPS	= StrToNum( StaticVarGetText( Ticker + "_IBD_CYEPS"		));
+CQEPSE	= StrToNum( StaticVarGetText( Ticker + "_IBD_CQEPSE"	));
+LQEPS	= StrToNum( StaticVarGetText( Ticker + "_IBD_LQEPS" 	));
+LQS		= StrToNum( StaticVarGetText( Ticker + "_IBD_LQS"		));
+
+// textual data
+IGRS	= StaticVarGetText( Ticker + "_IBD_IGRS"	);
+SMR		= StaticVarGetText( Ticker + "_IBD_SMR"		);
+AD		= StaticVarGetText( Ticker + "_IBD_AD" 		);
+SPON	= StaticVarGetText( Ticker + "_IBD_SPON"	);
+
+// get ROE from NORGATE data
+ROE 	= GetFnData( "ReturnOnEquity" );
+
+// thresholds for filtering
+goodCR 		= CR  	>= 95;
+goodRS 		= RS  	>= 90;
+goodEPS 	= EPS 	>= 80;
+goodLQEPS	= LQEPS >= 20;
+goodLQS		= LQS   >= 10;
+
+Filter = goodCR AND goodRS AND goodEPS AND goodLQEPS AND goodLQS;
+
+// add the exploration output columns
+AddColumn(		CR, 	"CR",		1.0	);	// filtered so no coloring needed
+AddColumn(		EPS, 	"EPS", 		1.0	);	// filtered so no coloring needed
+AddColumn(		RS, 	"RS", 		1.0	);	// filtered so no coloring needed	
+AddTextColumn(	IGRS, 	"IGRS", 	1.0, colorWhite, getGradeColor( IGRS ) );
+AddColumn(		IGR, 	"IGR",		1.0, colorWhite, IIf(IGR 	<= 20, colorGreen, IIf(IGR <= 40, colorDarkYellow, colorRed)) );
+AddTextColumn(	SMR, 	"SMR", 		1.0, colorWhite, getGradeColor( SMR  ) );
+AddTextColumn(	AD, 	"AD", 		1.0, colorWhite, getGradeColor( AD   ) );
+AddColumn(		ROE, 	"ROE",		1.0, colorWhite, IIf(ROE 	>= 17, colorGreen, IIf(ROE >= 12, colorDarkYellow, colorRed)) );
+AddTextColumn(	SPON, 	"SPON", 	1.0, colorWhite, getGradeColor( SPON ) );	
+AddColumn(		PTM, 	"PTM",		1.0, colorWhite, IIf(PTM 	>= 20, colorGreen, IIf(PTM >= 15, colorDarkYellow, colorRed)) );
+AddColumn(		CYEPS, 	"CYEPS",	1.0, colorWhite, IIf(CYEPS  >= 25, colorGreen, IIf(CYEPS <= 20, colorDarkYellow, colorRed)) );
+AddColumn(		CQEPSE, "CQEPSE",	1.0, colorWhite, IIf(CQEPSE >= 25, colorGreen, IIf(CQEPSE <= 20, colorDarkYellow, colorRed)) );
+AddColumn(		LQEPS, 	"LQEPS",	1.0, colorWhite, IIf(LQEPS  >= 25, colorGreen, IIf(LQEPS <= 20, colorDarkYellow, colorRed)) );
+AddColumn(		LQS, 	"LQS",		1.0, colorWhite, IIf(LQS	>= 20, colorGreen, IIf(LQS <= 15, colorDarkYellow, colorRed)) );
+
+SetSortColumns(-3, -5, -4);

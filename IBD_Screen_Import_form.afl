@@ -1,0 +1,149 @@
+// import CSV files from IBD to respective WL
+// Amibroker 6.40
+// Created date: 2023-12-11
+
+// function to take in a filename and import the list
+// input: 	filename as a string, WLnum as an integer
+// output: 	nothing
+function import_screen( filename, WLnum )
+{
+    // open the filename as read-only
+    fh = fopen( filename, "r" );
+
+    // init string for csv output
+    csvdata = "";
+
+    // process the CSV data if the file exists, otherwise error out
+    if( fh )
+    {
+        // concatenate csv data from CSV until end of file, due to 1024 char limit for fgets
+        while( ! feof( fh ) )
+        {
+            // instead of printing to commentary like in the reference, we concatenate the data if longer than 1024 characters
+            csvdata += fgets( fh );
+        }
+
+        // get current watchlist list of symbols as a string
+        CurrentWL = CategoryGetSymbols( categoryWatchlist, WLnum );
+
+        // make empty the current watchlist to replace with the new one
+        for( i = 0; ( sym = StrExtract( CurrentWL, i ) ) != ""; i++ )
+        {
+            CategoryRemoveSymbol( sym, categoryWatchlist, WLnum );
+        }
+
+        // replace with new watchlist
+        for( i = 0; ( sym = StrExtract( csvdata, i ) ) != ""; i++ )
+        {
+			// remove bad characters (garbage or spaces)
+			while( Asc(sym) < 65 OR Asc(sym) > 90 )
+				sym = StrRight(sym, StrLen(sym) - 1);
+			
+			// add cleaned symbol to WL
+            CategoryAddSymbol( sym, categoryWatchlist, WLnum );
+        }
+        
+        fclose(fh);
+    }
+    else
+    {
+        // error output if file not found
+        printf( "ERROR: file can not be found (does not exist)" );
+    }
+}
+
+// perform at the beginning of the exploration only, i.e. perform once
+if( Status( "stocknum" ) == 0 )
+{
+    /* List of csv files to use, update as needed if workflow changes
+    	IBD 50.csv
+    	IBD Big Cap 20.csv
+    	IBD Sector Leaders.csv
+    	Stock Spotlight.csv
+    	IPO Leaders.csv
+    	New Highs.csv
+    	Relative Strength At New High.csv
+    	Global Leaders.csv
+    	Rising Profit Estimates.csv
+    	Stocks That Funds Are Buying.csv
+    	Your Weekly Review.csv
+    */
+
+    // CSV files are stored here, update if necessary
+    folderpath = "C:\\Users\\admin\\OneDrive\\Downloads\\";
+
+    // IBD 50 is always the first watchlist, noting that there are 11 main IBD screens to import
+    // Thus WLnum is initialized to the first list number and we can increment from there
+    // filenames must match with the above and the watchlists in Amibroker must be in the same 
+    // order as above as well
+    WLnum = CategoryFind( "IBD 50", categoryWatchlist );
+
+    // iterate over all watchlists and
+    for( i = WLnum; i <= WLnum + 10; i++ )
+    {
+        switch( i )
+        {
+            case 9:
+                filename = "IBD 50.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+            case 10:
+                filename = "IBD Big Cap 20.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+            case 11:
+                filename = "IBD Sector Leaders.csv";
+                import_screen( folderpath + filename, i );
+                break;
+            
+            case 12:
+                filename = "Stock Spotlight.csv";
+                import_screen( folderpath + filename, i );
+                break;
+                
+            case 13:
+                filename = "IPO Leaders.csv";
+                import_screen( folderpath + filename, i );
+                break;
+                
+            case 14:
+                filename = "New Highs.csv";
+                import_screen( folderpath + filename, i );
+                break;
+                
+            case 15:
+                filename = "Relative Strength At New High.csv";
+                import_screen( folderpath + filename, i );
+                break;
+			
+			case 16:
+                filename = "Global Leaders.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+			case 17:
+                filename = "Rising Profit Estimates.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+			case 18:
+                filename = "Stocks That Funds Are Buying.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+			case 19:
+                filename = "Your Weekly Review.csv";
+                import_screen( folderpath + filename, i );
+                break;
+
+
+            default:
+                
+                break;
+        }
+    }
+
+}
+

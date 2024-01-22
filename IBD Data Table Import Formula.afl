@@ -1,0 +1,219 @@
+// IBD Data Table Import Formula
+// Imports the following data from the IBD Stock Screener [https://ibdstockscreener.investors.com/]
+// Requires an IBD subscription
+// Please ensure your export contains the following columns, in any order:
+/*
+	Composite Rating
+	EPS Rating
+	RS Rating
+	Ind Grp RS
+	SMR Rating
+	A/D Rating
+	Sponsorship Rating
+	Pretax Margin
+	Curr Yr EPS Est. % Chg.
+	Curr Qtr EPS Est. % Chg.
+	Last Qtr EPS % Chg.
+	Last Qtr Sales % Chg.
+	
+	Feel free to add your own!
+*/
+
+// Michael Angelo MUSTILLO, May 2022, Vienna, Austria
+// Developed in Amibroker 6.30.5 on Windows 11 PC, i9-12900 32GB RAM
+// Using Norgate Premium Data
+// Updated January 7th, 2023
+// dm-tribe.com
+
+// initialize values
+location	= "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\dump.csv";
+rightrow	= False;
+checkcell	= 0;
+col_Ticker 	= 0;
+col_CR 		= 0;
+CR			= 0;
+col_EPSR 	= 0;
+EPSR		= 0;
+col_RSR 	= 0;
+RSR			= 0;
+col_IGRSR 	= 0;
+IGRSR		= 0;
+col_IGR 	= 0;
+IGR			= 0;
+col_SMRR 	= 0;
+SMRR		= 0;
+col_ADR 	= 0;
+ADR			= 0;
+col_SR 		= 0;
+SR			= 0;
+col_PTM 	= 0;
+PTM			= 0;
+col_CYEPS 	= 0;
+CYEPS		= 0;
+col_CQEPSE 	= 0;
+CQEPSE		= 0;
+col_LQEPS 	= 0;
+LQEPS		= 0;
+col_LQS 	= 0;
+LQS			= 0;
+
+// Open IBD data table
+file = fopen( location, "r" );
+
+while( NOT rightrow )
+{    
+	// retrieves header row which will enable loop below
+    CL = fgets( file );
+    checkcell = StrExtract( CL, 0 );
+
+    // right row?
+    rightrow = StrMatch( "Symbol", checkcell );
+
+    if( rightrow )
+    {
+        col = 0;	// column index
+
+        // find correct columns for extraction
+        while( StrExtract( CL, col ) != "" )
+        {
+            header = StrExtract( CL, col );
+
+            if( StrMatch( header, "Symbol" ) )
+                col_Ticker 	= col;
+
+            if( StrMatch( header, "Comp. Rating" ) )
+                col_CR 		= col;
+
+            if( StrMatch( header, "EPS Rating" ) )
+                col_EPSR	= col;
+
+            if( StrMatch( header, "RS Rating" ) )
+                col_RSR		= col;
+
+            if( StrMatch( header, "Ind Grp RS" ) )
+                col_IGRSR	= col;
+
+            if( StrMatch( header, "Industry Group Rank" ) )
+                col_IGR		= col;
+
+            if( StrMatch( header, "SMR Rating" ) )
+                col_SMRR	= col;
+
+            if( StrMatch( header, "Acc/Dis Rating" ) )
+                col_ADR		= col;
+
+            if( StrMatch( header, "Spon Rating" ) )
+                col_SR		= col;
+
+            if( StrMatch( header, "Pretax Margin" ) )
+                col_PTM		= col;
+
+            if( StrMatch( header, "Curr Yr EPS Est. % Chg." ) )
+                col_CYEPS 	= col;
+
+            if( StrMatch( header, "Curr Qtr EPS Est. % Chg." ) )
+                col_CQEPSE 	= col;
+
+            if( StrMatch( header, "Last Qtr EPS % Chg." ) )
+                col_LQEPS	= col;
+
+            if( StrMatch( header, "Last Qtr Sales % Chg." ) )
+                col_LQS		= col;
+
+            col++;
+        }
+    }
+}
+
+// Collect symbols from all markets
+listNYSE = CategoryGetSymbols( categoryMarket, 1  );	// NYSE
+listNSDQ = CategoryGetSymbols( categoryMarket, 2  );	// NASDAQ
+listARCA = CategoryGetSymbols( categoryMarket, 3  );	// NYSE ARCA
+listNYAM = CategoryGetSymbols( categoryMarket, 4  );	// NYSE American
+listCBZX = CategoryGetSymbols( categoryMarket, 5  );	// CBOE BZX
+
+// Create the full list of stocks to be ranked as a concatenated string CSV of both markets
+List    = listNYSE + "," + listNSDQ + "," + listARCA + "," + listNYAM + "," + listCBZX;
+    
+
+//Loop through list until EOF, extracting CSV data and storing it as persistent static variables
+while( StrExtract( CL, 0 ) != "" )
+{
+    // Retrieve new line in CSV
+    CL 		= fgets( file );
+
+    // Determine Ticker
+    // Symbol is always column 0
+    Ticker 	= StrExtract( CL, 	col_Ticker );
+    TickLen = StrLen(Ticker);
+      
+    TickExist = StrFind(List, Ticker) > 0;
+    
+    if(NOT TickExist)
+    {
+		Ticker = StrLeft(Ticker, TickLen - 1) + "." + StrRight(Ticker, 1);
+	}
+
+    // Extract CR
+    if ( col_CR )		CR		= StrExtract( CL, 	col_CR );
+
+    // Extract EPS
+    if ( col_EPSR )		EPS		= StrExtract( CL, 	col_EPSR );
+
+    // Extract RS
+    if ( col_RSR )		RS		= StrExtract( CL, 	col_RSR );
+
+    // Extract Ind Grp RS
+    if ( col_IGRSR )	IGRS	= StrExtract( CL, 	col_IGRSR );
+
+	// Extract Ind Grp Rank
+    if ( col_IGR )		IGR		= StrExtract( CL, 	col_IGR );
+
+    // Extract SMR Rating
+    if ( col_SMRR) 		SMR		= StrExtract( CL, 	col_SMRR );
+
+    // Extract A/D Rating
+    if ( col_ADR )		AD		= StrExtract( CL, 	col_ADR );
+
+    // Extract Sponsorship Rating
+    if ( col_SR )		SPON	= StrExtract( CL, 	col_SR );
+
+    // Extract Pretax Margin Rating
+    if ( col_PTM ) 		PTM		= StrExtract( CL, 	col_PTM );
+
+    // Extract Curr Yr EPS Est. % Chg Rating
+    if ( col_CYEPS )	CYEPS	= StrExtract( CL, 	col_CYEPS );
+
+    // Extract Curr Qtr EPS Est. % Chg. Rating
+    if ( col_CQEPSE )	CQEPSE	= StrExtract( CL, 	col_CQEPSE );
+
+    // Extract Last Qtr EPS % Chg. Rating
+    if ( col_LQEPS )	LQEPS	= StrExtract( CL, 	col_LQEPS );
+
+    // Extract Last Qtr Sales % Chg. Rating
+    if ( col_LQS )		LQS		= StrExtract( CL, 	col_LQS );
+
+    //// Set static variables for current ticker with persistence between app runs
+    // delete previous rankings
+    StaticVarRemove( Ticker + "_IBD_*" );
+	
+	// set new rankings for current stock in loop
+    StaticVarSetText( Ticker + "_IBD_CR" ,   	CR,  	True );
+    StaticVarSetText( Ticker + "_IBD_EPS",   	EPS, 	True );
+    StaticVarSetText( Ticker + "_IBD_RS" ,   	RS,  	True );
+    StaticVarSetText( Ticker + "_IBD_IGRS", 	IGRS, 	True );
+    StaticVarSetText( Ticker + "_IBD_IGR",   	IGR, 	True );
+    StaticVarSetText( Ticker + "_IBD_SMR" ,  	SMR, 	True );
+    StaticVarSetText( Ticker + "_IBD_AD"  ,   	AD, 	True );
+    StaticVarSetText( Ticker + "_IBD_SPON", 	SPON, 	True );
+    StaticVarSetText( Ticker + "_IBD_PTM",   	PTM, 	True );
+    StaticVarSetText( Ticker + "_IBD_CYEPS", 	CYEPS, 	True );
+    StaticVarSetText( Ticker + "_IBD_CQEPSE", 	CQEPSE, True );
+    StaticVarSetText( Ticker + "_IBD_LQEPS", 	LQEPS, 	True );
+    StaticVarSetText( Ticker + "_IBD_LQS", 		LQS, 	True );
+}	// end loop
+
+// Close file
+fclose( file );
+
+// END OF SCRIPT

@@ -1,0 +1,31 @@
+
+
+// Collect symbols from all markets
+listnum = CategoryFind( "Interesting Stocks", categoryWatchList);
+list 	= CategoryGetSymbols( categoryWatchList, listnum ); 
+
+
+for( n = 0; ( Symbol = StrExtract( List, n ) ) != "";  n++ )
+{
+    ih = InternetOpenURL( "https://api.iex.cloud/v1/stock/" + Symbol + "/logo" + "?token=" + "pk_52a6e86a06334512bce426aaf3f28dca" );
+
+    if( ih )
+    {
+        str = InternetReadString( ih );
+
+        // example api return is:
+        // {"url":"https://storage.googleapis.com/iexcloud-hl37opg/api/logos/AAPL.png"}
+
+        // process url in api return
+        len_of_str 	= StrLen( str );
+        urlstart 	= StrFind( str, "https" );
+        url 		= StrRight( str, len_of_str - urlstart + 1 );
+        len_of_url 	= StrLen( url );
+        url 		= StrLeft( url, len_of_url - 3 );
+
+        InternetClose( ih );
+    }
+
+    args = "--no-check-certificate -N -P C:\\Users\\admin\\OneDrive\\Desktop\\temp\\LOGO\\ " + url;
+    se = ShellExecute( "wget.exe", args, "C:\\Program Files (x86)\\GnuWin32\\bin\\" );
+}

@@ -1,0 +1,29 @@
+// rank stocks by number of lists they are in
+
+// i = WL number
+counter = 0;	// counter of watchlist entries
+for( i = 3; i <= 21; i++ )
+{
+	// check if in watchlist and count up
+	if (InWatchList(i))
+		counter++;
+}
+
+// if in the rocketpower select, include it regardless
+// get wl number
+rPSel 	= CategoryFind( "rocketPower Select", categoryWatchlist );
+
+// check rocketPower select list like the others above
+if ( InWatchList( rPSel ) )
+	{
+		InWL = True;
+		counter++;
+	}
+
+// only output significant counts (adjust as necessary)
+Filter = counter > 3;
+
+AddColumn(counter, "WL#", 1.0);
+AddTextColumn(GicsID( 1 ), "GICS ID");
+AddTextColumn(SectorID( 1 ), "Sector ID");
+SetSortColumns(-3);

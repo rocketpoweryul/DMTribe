@@ -1,0 +1,2287 @@
+// THIS IS NOT FORMAL CODE
+
+// This file is a chart formula for Amibroker
+// The purpose is to test detection of chart characteristics driven by the function library
+
+// include the functional library
+#pragma nocache
+#include_once "C:\Users\admin\OneDrive\Michael\Documents\GitHub\TPT\TPT_Func_Lib.afl"
+#include_once "Formulas\Norgate Data\Norgate Data Functions.afl"
+
+// Ticker
+Tick = Name();
+
+// GUI
+_SECTION_BEGIN( "Chart Mode" );
+dispFlag = ParamToggle( "Chart Data Mode", "Sell|Buy", 1 );
+_SECTION_END();
+
+xbut = 0;
+xbut_shift = 70;
+
+
+// function to return color for grade
+function getGradeColor(grade_str)
+{
+	// figure out color per grade string
+	switch( grade_str )
+	{
+		case "A+":
+		case "A":
+		case "A-":
+			thecolor = colorGreen;
+			break;
+		case "B+":
+		case "B":
+		case "B-":
+			thecolor = colorDarkYellow;
+			break;
+		case "C+":
+		case "C":
+		case "C-":
+			thecolor = colorOrange;
+			break;
+		case "D+":
+		case "D":
+		case "D-":
+			thecolor = colorRed;
+			break;
+		default:
+			thecolor = colorDefault;
+			break;
+	}
+	
+	// return the color required
+	return thecolor;
+}
+
+GfxSetZOrder( 1 );
+{
+    IntStkBut = 3;
+    GuiButton( "Add to IS", IntStkBut, xbut, 20, 65, 20, notifyClicked );
+
+    if( GuiGetEvent( 0, 0 ) == 3 )
+    {
+        IntStock = CategoryFind( "Interesting Stocks", categoryWatchlist );
+        CategoryAddSymbol( Tick, categoryWatchlist, IntStock );
+    }
+
+    xbut += xbut_shift;
+
+    SqStkBut = 4;
+    GuiButton( "Add to Sq", SqStkBut, xbut, 20, 65, 20, notifyClicked );
+
+    if( GuiGetEvent( 0, 0 ) == 4 )
+    {
+        SqStock = CategoryFind( "Buy List", categoryWatchlist );
+        CategoryAddSymbol( Tick, categoryWatchlist, SqStock );
+    }
+
+    xbut += xbut_shift;
+
+    RemFav = 5;
+    GuiButton( "Rem Fav", RemFav, xbut, 20, 65, 20, notifyClicked );
+
+    if( GuiGetEvent( 0, 0 ) == 5 )
+    {
+        CategoryRemoveSymbol( Tick, categoryFavorite, 0 );
+    }
+
+    xbut += xbut_shift;
+
+    ExcludeStock = 6;
+    GuiButton( "Exclude", ExcludeStock, xbut, 20, 65, 20, notifyClicked );
+
+    if( GuiGetEvent( 0, 0 ) == 6 )
+    {
+        ExcStock = CategoryFind( "DMT EXCLUDE LIST", categoryWatchlist );
+        CategoryAddSymbol( Tick, categoryWatchlist, ExcStock );
+    }
+
+    xbut += xbut_shift;
+
+    GetEarningsData = 7;
+    GuiButton( "Corp Earn", GetEarningsData, xbut, 20, 65, 20, notifyClicked );
+
+    if( GuiGetEvent( 0, 0 ) == 7 )
+    {
+        exe		= "msedge.exe";
+        args 	= "https://www.zacks.com/stock/research/" + Tick + "/earnings-calendar";
+        wd   	= "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\";
+        se = ShellExecute( exe, args, wd );
+    }
+
+    xbut += xbut_shift;
+
+    // Stock Checkup function
+    ISLButton = 9;
+
+    GuiButton( "IBD SC", ISLButton, xbut, 20, 65, 20, notifyClicked );
+    GuiEnable( ISLButton, True );
+
+    if( GuiGetEvent( 0, 0 ) == ISLButton )
+    {
+        if( MarketID() == 1 )
+            ISLMkt = "nyse";
+        else
+            if( MarketID() == 2 )
+                ISLMkt = "nasdaq";
+            else
+                GuiEnable( ISLButton, False );
+
+        ISLticker 	= Name();
+        IS_ADR		= StrFind( FullName(), "ADR" ) > 0;
+        ISLComp     = StrReplace( FullName(), "Common", "" );
+        ISLComp     = StrReplace( ISLComp,    "Class" , "Cl" );
+        ISLComp		= StrReplace( ISLComp,    " ",      "-" );
+
+
+
+        exe		= "msedge.exe";
+        wd   	= "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\";
+        ISLURL 	= "https://research.investors.com/stock-checkup/" + ISLMkt + "-" + ISLComp + WriteIf( IS_ADR, "ADR-", "" ) + ISLticker + ".aspx";
+        ShellExecute( exe, ISLURL, wd );
+    }
+
+    xbut += xbut_shift;
+	
+	
+	
+
+    // retrieve png of logo from iex
+    GetLogo = 8;
+    GuiButton( "Get Logo", GetLogo, xbut, 20, 65, 20, notifyClicked );
+	
+	filenoexist = IsNull(fgetstatus("C:\\Users\\admin\\OneDrive\\Desktop\\temp\\LOGO\\" + Tick + ".png", 3));
+
+//    if( (GuiGetEvent( 0, 0 ) == 8 OR filenoexist) AND NOT StrFind(Tick, "$") )
+	if( (GuiGetEvent( 0, 0 ) == 8 ) AND NOT StrFind(Tick, "$") )
+    {
+        ih = InternetOpenURL( "https://api.iex.cloud/v1/stock/" + Tick + "/logo" + "?token=" + "pk_52a6e86a06334512bce426aaf3f28dca" );
+
+        if( ih )
+        {
+            str = InternetReadString( ih );
+
+            // example api return is:
+            // {"url":"https://storage.googleapis.com/iexcloud-hl37opg/api/logos/AAPL.png"}
+
+            // process url in api return
+            len_of_str 	= StrLen( str );
+            urlstart 	= StrFind( str, "https" );
+            url 		= StrRight( str, len_of_str - urlstart + 1 );
+            len_of_url 	= StrLen( url );
+            url 		= StrLeft( url, len_of_url - 3 );
+
+            InternetClose( ih );
+        }
+
+        args = "--no-check-certificate -N -P C:\\Users\\admin\\OneDrive\\Desktop\\temp\\LOGO\\ " + url;
+        se = ShellExecute( "wget.exe", args, "C:\\Program Files (x86)\\GnuWin32\\bin\\" );
+    }
+
+    xbut += xbut_shift * 17;
+}
+
+_SECTION_BEGIN( "Price" );
+{
+    //plot chart data
+    thickness = Param( "Bar thickness", -20, -100, 10, 1 );
+
+    rc = ROC( C, 1 );
+    color = IIf( rc >= 0, colorBlue, IIf( rc < 0, colorRed, -1 ) );
+
+    style = styleNoTitle | styleBar;
+
+    PlotOHLC( O, H, L, C, "", color, style, Null, Null, 0, 0, thickness );
+
+    _N( Title = StrFormat( "{{NAME}} - {{INTERVAL}} {{DATE}} Open %g, Hi %g, Lo %g, Close %g (%.1f%%)", O, H, L, C, SelectedValue( ROC( C, 1 ) ) ) );
+
+    // plot MAs and RS Line
+    SMA200 = MA( C, 200 );
+    SMA150 = MA( C, 150 );
+    SMA050 = MA( C,  50 );
+    SMA020 = MA( C,  20 );
+    SMA010 = MA( C,  10 );
+
+    SMA200_ext = LastValue( C / SMA200 - 1 ) * 100;
+    SMA150_ext = LastValue( C / SMA150 - 1 ) * 100;
+    SMA050_ext = LastValue( C / SMA050 - 1 ) * 100;
+    SMA020_ext = LastValue( C / SMA020 - 1 ) * 100;
+    SMA010_ext = LastValue( C / SMA010 - 1 ) * 100;
+
+    Plot( SMA200, "200D SMA ", colorBlack );
+    Plot( SMA150, "150D SMA", colorBlue );
+    Plot( SMA050, "50D SMA" , colorRed );
+    Plot( SMA020, "20D SMA" , colorGreen );
+
+    PlotText( "200d SMA " + NumToStr( SMA200_ext, 1.0 ) + "%", BarCount, LastValue( SMA200 ), colorLightGrey, colorDefault, -5 );
+    PlotText( "150d SMA " + NumToStr( SMA150_ext, 1.0 ) + "%", BarCount, LastValue( SMA150 ), colorLightBlue, colorDefault, -5 );
+    PlotText( "50d SMA "  + NumToStr( SMA050_ext, 1.0 ) + "%", BarCount, LastValue( SMA050 ), colorLightOrange, colorDefault, -5 );
+    PlotText( "20d SMA "  + NumToStr( SMA020_ext, 1.0 ) + "%", BarCount, LastValue( SMA020 ), colorLime, colorDefault, -5 );
+
+    if( NOT dispflag )
+    {
+        Plot( SMA010, "10D SMA" , colorDarkYellow );
+        PlotText( "10d SMA", BarCount, LastValue( SMA010 ), colorDarkYellow, colorDefault, -5 );
+    }
+
+    // Three weeks tight
+    /*
+    wc = TimeFrameCompress( C, inWeekly );
+    ROC_C = abs( ROC( wc, 1 ) );
+    TWTRaw   = ROC_C < 1.5 AND Ref( ROC_C, -1 ) < 1.5;
+    TWT 	 = TWTRaw OR Sum( Ref( TWTRaw, 2 ), 3 );
+
+    TWT = TimeFrameExpand( TWT, inWeekly, expandPoint );
+    TWT = IIf( IsNull( TWT ), 0, TWT );
+	*/
+    //PlotShapes(IIf(TWT, shapeHollowSquare, shapeNone), colorGreen, 0, Avg, 0, 0);
+
+
+}
+_SECTION_END();
+
+_SECTION_BEGIN( "RS Line" );
+{
+// Calculcate the RSL
+    RSL  = C / Foreign( "$SPX", "C" );
+
+// bias the RSL to appear below your chart without screwing it up (you may need to adjust the 2.25 value to your tsate)
+    rslb = RSL * 1500 + LastVisibleValue( C ) / 2.25;
+
+// plot the RSL on the chart
+    Plot( rslb, "RS Line", colorBlue, styleDashed );
+    PlotText( "RS Line", BarCount, LastValue( rslb ), colorLightBlue, colorDefault, -5 );
+
+// find the last highest value in the last three months
+    H_HHV = HHV( H, 69 );
+
+// find the number of bars since this high occurred
+    BaseHigh = BarsSince( H == H_HHV );
+
+// find the high of the RSL within the consolidation
+    RS_HHV = HHV( RSL, 69 );
+
+// check if a new RSL new high occurs
+    RSNH = RSL > Ref( RS_HHV, -1 );
+    RSNH = ExRem( RSNH, NOT RSNH );	// remove consecutive days
+
+// determine if the RSL new high is within a decently long consolidation (I chose four weeks)
+    RSNH_inbase = RSNH AND BaseHigh > 20;
+    RSNH_inbase = ExRem( RSNH_inbase, NOT RSNH_inbase ); // remove consecutive days
+
+
+// plot the dots for regular RSL new highs and those within consolidation with different colours
+    PlotShapes( IIf( RSNH, shapeCircle, shapeNone ), colorAqua, 0, rslb, 0 );
+    PlotShapes( IIf( RSNH_inbase, shapeCircle, shapeNone ), colorOrange, 0, rslb, 0 );
+
+    /*
+    Buy = false;
+    Buy[BarCount-2] = true;
+    RSLHigh 		= ExRem(RSL == HHV(RSL, 69), Buy);
+    rslb			= RSL + C[BarCount-1]/2.25;
+    PlotShapes(IIf(RSLHigh, shapeCircle, shapeNone), colorAqua, 0, rslb, 0);
+    Plot(rslb, "RS Line", colorBlue, styleDashed);
+    PlotText("RS Line", BarCount+2, LastValue(rslb), colorBlue);
+    */
+}
+_SECTION_END();
+
+_SECTION_BEGIN( "Hourly Pivot High" );
+{
+    hourpivot = Param( "Hourly Pivot High", 0, 0, HighestVisibleValue( H ), 0.01 );
+}
+
+// determine RS
+RS = StaticVarGet( "RS_" + Tick );
+/*
+RSref = LastValue(HHV(rslb, 21*6));
+RScurve = RS/99*RSref*0.28+LastValue(C)*0.6;
+Plot(RScurve, "RS Curve", colorGrey50, styleDashed);
+PlotText("RS Curve", BarCount+2, LastValue(RScurve), colorBlack);
+*/
+
+// determine FuelTank Rating
+FTCapacity 	= Sum( V, 50 );
+FTAccumul 	= IIf( H - L == 0, 0, SafeDivide(V * ( ( C - L ) - ( H - C ) ), ( H - L ) ));
+FTFuel		= Sum( FTAccumul, 50 );
+
+CSMA50 = MA( C, 50 );
+
+FuelTank = round( IIf( FTCapacity == 0, 0, SafeDivide(FTFuel, FTCapacity) ) * 100 ) * IIf( C < CSMA50, 1, CSMA50 / C ) ;
+
+
+///// DEBUG CODE: FUNCTION TEST CODE (EMPTY IF NO FUNCTIONAL UNIT TESTS BEING PERFORMED)
+
+
+/////
+
+// DEBUG CODE: BLUE AND GOLD ARROW PLOTS
+enabledebugarrow = 0;
+
+if( enabledebugarrow )
+{
+    //PlotShapes(IIf(SwingLow(L),  shapeUpArrow,   shapeNone), colorOrange, 0, Graph0Low,  -25);
+    //PlotShapes(IIf(SwingHigh(H), shapeDownArrow, shapeNone), colorOrange, 0, Graph0High, -25);
+
+    ConIndex = getContractionIndex( L, H, O, C );
+    SH 		 = SwingHigh( H );
+
+    i = 1;
+    HOBBars = LastValue( HHVBars( H, 130 ) );
+    HOB     = LastValue( HHV( H, 130 ) );
+
+
+    do
+    {
+        CurLow = LowestLow( L, H, O, C, SH, i );
+        LowCond  = L == CurLow;
+        PlotShapes( IIf( LowCond, shapeUpArrow, shapeNone ), colorBlue, 0, Graph0Low, -40 );
+
+        CurHigh = HighestHigh( H, SH, i );
+        HighCond = H == CurHigh;
+        PlotShapes( IIf( HighCond AND SH, shapeDownArrow, shapeNone ), colorBlue, 0, Graph0High, -40 );
+
+        i++;
+        SHBars = SwingIndex( SH, i );
+    }
+    while( SHBars <= HOBBars );
+
+    i = 1;
+
+    do
+    {
+        CurLow = LowestLow( L, H, O, C, ConIndex, i );
+        LowCond  = L == CurLow;
+        PlotShapes( IIf( LowCond, shapeUpArrow, shapeNone ), colorDarkYellow, 0, Graph0Low, -40 );
+
+        CurHigh = HighestHigh( H, ConIndex, i );
+        HighCond = H == CurHigh;
+        PlotShapes( IIf( HighCond AND ConIndex, shapeDownArrow, shapeNone ), colorDarkYellow, 0, Graph0High, -40 );
+
+        i++;
+        SHBars = SwingIndex( ConIndex, i );
+    }
+    while( SHBars <= HOBBars );
+
+}
+
+// STOCK ANALYSIS CODE
+
+// init pivot data
+PvtVld 		= False;
+PvtIndex	= 0;
+PvtPrice	= 0;
+LHSBars		= BarCount;
+LHSPrice 	= 0;
+PvtH		= 0;
+PrevH		= 0;
+Ovlp 		= 0;
+TurnLA 		= Null;
+PPPvtVld	= 0;
+Depth 		= Null;
+
+IPO = BarCount < 21 * 12;
+
+// find a valid base
+VldCSBase  	= False;
+VldCapBase  = False;
+VldPPBase   = False;
+
+
+// determine if trending
+TF = TrendFilter( L, H, O, C, V );
+
+if( StrMatch( StaticVarGetText( "ChartRefresh" ), Tick ) )
+{
+    VldPPBase = StaticVarGet( "_VldPPBAse" );
+    VldCSBase = StaticVarGet( "_VldCSBase" );
+    VldCapBase = StaticVarGet( "_VldCapBase" );
+}
+else
+{
+    VldPPBase		= getPPBaseParam( L, H,	      "Validity" );
+
+    if( NOT VldPPBase )
+        VldCSBase  	= getCSBaseParam( L, H, O, C, "Validity" );
+
+    if( NOT VldCSBase )
+        VldCapBase  = getCSCapBaseParam( L, H, O, C, "Validity" );
+
+    if( VldPPBase ) StaticVarSet( "_VldPPBAse", VldPPBase );
+    else StaticVarSet( "_VldPPBAse", False );
+
+    if( VldCSBase ) StaticVarSet( "_VldCSBase", VldCSBase );
+    else StaticVarSet( "_VldCSBase", False );
+
+    if( VldCapBase ) StaticVarSet( "_VldCapBase", VldCapBase );
+    else StaticVarSet( "_VldCapBase", False );
+}
+
+// check for manual base
+ValidConsolidation = 0;
+if (NOT VldCSBase AND NOT VldPPBase AND NOT VldCapBase)
+{
+	BS_base = Study("BS", 1045);
+	ValidConsolidation = ValueWhen(NOT IsNull(BS_Base), BS_Base) > 0;
+}
+
+// get and plot data depending on base type or else do nothing
+
+if( VldCapBase )
+{
+    // get params
+    CapValues  	= getCSCapBaseParam( L, H, O, C, "Values"	);
+
+    LHSPrice 	= CapValues[0];
+    LHSBars		= CapValues[1];
+    LowPrice 	= CapValues[2];
+
+    LowBar 		= IIf( BarIndex() > BarCount - CapValues[1] - 1, LowPrice, Null );
+    HighBar		= IIf( BarIndex() > BarCount - CapValues[1] - 1, LHSPrice, Null );
+
+    Plot( LowBar , "LowBar" , colorTeal, styleThick );
+    Plot( HighBar, "HighBar", colorTeal, styleThick );
+
+    Depth = ( 1 - LowPrice / LHSPrice ) * 100;
+
+}
+
+if( VldCSBase )
+{
+    // get params
+    LHSPrice  	= getCSBaseParam( L, H, O, C, "LHSPrice"	);
+    LHSBars  	= getCSBaseParam( L, H, O, C, "LHSBars"		);
+    LowPrice  	= getCSBaseParam( L, H, O, C, "LowPrice"	);
+
+    LowBar 		= IIf( BarIndex() > BarCount - LHSBars - 1, LowPrice, Null );
+    HighBar		= IIf( BarIndex() > BarCount - LHSBars - 1, LHSPrice, Null );
+
+    Plot( LowBar , "LowBar" , colorTeal, styleThick );
+    Plot( HighBar, "HighBar", colorTeal, styleThick );
+
+    Depth = ( 1 - LowPrice / LHSPrice ) * 100;
+}
+
+if( VldPPBase )
+{
+    // get params
+    LHSPrice  	= getPPBaseParam( L, H, "PoleHigh"	);
+    LowPrice  	= getPPBaseParam( L, H, "FlagLow"	);
+
+    LHSBars  	= getPPBaseParam( L, H, "PHBar"	);
+    PoleLow  	= getPPBaseParam( L, H, "PoleLow"	);
+    PoleLen  	= getPPBaseParam( L, H, "PoleLen"	);
+
+    FlagLowLine 	= IIf( BarIndex() > BarCount - LHSBars - 1, LowPrice , Null );
+    FlagHighLine	= IIf( BarIndex() > BarCount - LHSBars - 1, LHSPrice, Null );
+
+    PoleLine		= LineArray( BarCount - PoleLen - LHSBars, PoleLow, BarCount - LHSBars, LHSPrice );
+
+    Plot( FlagLowLine , "LowBar"  , colorTeal, styleThick );
+    Plot( FlagHighLine, "HighBar" , colorTeal, styleThick );
+    Plot( PoleLine,	   "PoleLine", colorTeal, styleThick );
+
+    Depth = ( 1 - LowPrice / LHSPrice ) * 100;
+}
+
+/*
+if (Depth > 15 AND (VldCSBase OR VldCapBase OR VldPPBase))
+{
+	TurnLA = getTurnLA(L, H, O, C);
+
+	// format turn for plotting
+	TurnLAPlot = IIf(TurnLA > 1.01*LHSPrice, Null, TurnLA);
+	TurnLAPlot = IIf(TurnLA < 0.99*LowPrice, Null, TurnLA);
+
+	Plot(TurnLAPlot, "TurnLA", colorBrown);
+}
+*/
+
+
+// get and plot pivot data if there is a valid base
+
+// get contraction index
+ConIndex = getContractionIndex( L, H, O, C );
+
+PvtVld 		= getMSPivotParam( L, H, O, C, "Validity" );
+PvtIndex	= getMSPivotParam( L, H, O, C, "SwingHighIndex" );
+PvtPrice	= getMSPivotParam( L, H, O, C, "Price"	);
+
+PBActive = StaticVarGet( Tick + "PBActive" );
+if (IsNull(PBActive))
+	PBActive = False;
+
+// activate pullback pivot
+SetPB = 10;
+
+GUIText = WriteIf( PBActive, "PB Pvt", "Nml Pvt" );
+colour = IIf( PBActive, colorBlue, IIf(PvtVld, colorGreen, colorRed) );
+
+GuiButton( GUIText, SetPB, xbut, 20, 65, 20, notifyClicked );
+GuiSetColors( SetPB, SetPB, colorDefault, colorWhite, colour );
+
+if( GuiGetEvent( 0, 0 ) == SetPB )
+{
+    if( PBActive )
+    {
+        StaticVarSet( Tick + "PBActive", False, True );
+        StaticVarSet( Tick + "PBBar", 0, True );        
+    }
+    else
+    {
+        StaticVarSet( Tick + "PBActive", True, True );
+    }
+}
+
+xbut += xbut_shift;
+
+// set pullback bar
+if( PBActive )
+{
+	PBBar = StaticVarGet( Tick + "PBBar" );
+	
+	if( IsNull( PBBar ) )
+		PBBar = 0;
+	
+    SetPBBar = 11;
+
+    GUIText = NumToStr( PBBar, 1.0 );
+    
+    switch( PBBar )
+    {
+		case 0:
+			colour = colorGreen;
+			break;
+		case 1:
+			colour = colorDarkYellow;
+			break;
+		case 2:
+			colour = colorOrange;
+			break;
+		default:
+			colour = colorRed;
+			break;
+	}
+
+    GuiButton( GUIText, SetPBBar, xbut, 20, 25, 20, notifyClicked );
+    GuiSetColors( SetPBBar, SetPBBar, colorDefault, colorWhite, colour );
+
+    if( GuiGetEvent( 0, 0 ) == SetPBBar )
+    {
+        PBBar = (PBBar + 1);// % 3;
+    }
+    StaticVarSet( Tick + "PBBar", PBBar, True );
+}
+
+//RequestTimedRefresh( 1 );
+RequestMouseMoveRefresh();
+
+VolOK 		= checkVolume( C, V, ConIndex, LHSBars );
+
+// plot contraction size at contractions
+PPH	  = Height( L, H, O, C, ConIndex, PvtIndex[0], PvtIndex[1] );
+PvtH  = Height( L, H, O, C, ConIndex, PvtIndex[2], PvtIndex[3] );
+PrevH = Height( L, H, O, C, ConIndex, PvtIndex[4], PvtIndex[5] );
+
+// plot green arrows at contractions
+PPLow    = PvtPrice[0];
+PPHigh   = PvtPrice[1];
+PvtLow   = PvtPrice[2];
+PvtHigh  = PvtPrice[3];
+PrevLow  = PvtPrice[4];
+PrevHigh = PvtPrice[5];
+
+if( PBActive )
+{
+    PvtHigh = LastValue( Ref( H, -PBBar ) );
+    PvtVld   = True;
+}
+
+//look for possible hourly pivot or at the turn pivot
+if( VldPPBAse AND NOT PvtVld )
+{
+    PPPvtVld = getPPPivotParam( L, H, C, V, LowPrice, LHSPrice, TurnLA, PvtH, PvtPrice[1] );
+}
+
+// pause pivot arrow
+PPCond = isPausePivot( L, H, O, C, ConIndex );
+if (NOT PvtVld AND PPCond)
+	PvtVld = True;
+
+custompivotinput = ParamToggle( "Custom Pivot", "No|Yes" );
+custompivot = StaticVarGet(Tick + "CustomPivot");
+if (IsNull(custompivot))
+	custompivot = False;
+
+if (custompivot == NOT custompivotinput)
+	custompivot = custompivotinput;
+
+StaticVarSet(Tick + "CustomPivot", custompivot, True);
+
+CBP = Param( "Buy Point", LastValue( H ), 0, 10000 );
+
+if( dispflag )
+{
+
+    // text output pivot and stops
+    if( PBActive )
+    {
+        pivotprice = "BP:   $" + NumToStr( PvtHigh + 0.1, 		8.2, False );
+        limitprice = "Lim: $"  + NumToStr( ( PvtHigh + 0.1 ) * 1.01, 8.2, False );
+        PlotText( pivotprice, BarCount + 1, PvtHigh + 0.1, colorBlue, colorwhite, 0 );
+        PlotText( limitprice, BarCount + 1, ( PvtHigh + 0.1 ) * 1.01, colorBlue, colorwhite, 10 );
+
+        stop2 = "2% STP: $" + NumToStr( ( PvtHigh + 0.1 ) * 0.98, 8.2, False );
+        stop4 = "4% STP: $" + NumToStr( ( PvtHigh + 0.1 ) * 0.96, 8.2, False );
+        HRsell = "2R Sell: $" + NumToStr( ( PvtHigh + 0.1 ) * 1.06, 8.2, False );
+        PlotText( stop2, BarCount + 1, ( PvtHigh + 0.1 ) * 0.98, colorBlue, colorwhite );
+        PlotText( stop4, BarCount + 1, ( PvtHigh + 0.1 ) * 0.96, colorBlue, colorwhite, 0 );
+        PlotText( HRsell, BarCount + 1, ( PvtHigh + 0.1 ) * 1.06, colorBlue, colorwhite, 0 );
+
+    }
+    else
+        if( custompivot )
+        {
+            pivotprice = "BP:   $" + NumToStr( CBP + 0.1, 		8.2, False );
+            limitprice = "Lim: $"  + NumToStr( ( CBP + 0.1 ) * 1.01, 8.2, False );
+            PlotText( pivotprice, BarCount + 1, CBP + 0.1, colorBlue, colorwhite, 0 );
+            PlotText( limitprice, BarCount + 1, ( CBP + 0.1 ) * 1.01, colorBlue, colorwhite, 10 );
+
+            stop2 = "2% STP: $" + NumToStr( ( CBP + 0.1 ) * 0.98, 8.2, False );
+            stop4 = "4% STP: $" + NumToStr( ( CBP + 0.1 ) * 0.96, 8.2, False );
+            HRsell = "2R Sell: $" + NumToStr( ( CBP + 0.1 ) * 1.06, 8.2, False );
+            PlotText( stop2, BarCount + 1, ( CBP + 0.1 ) * 0.98, colorBlue, colorwhite );
+            PlotText( stop4, BarCount + 1, ( CBP + 0.1 ) * 0.96, colorBlue, colorwhite, 0 );
+            PlotText( HRsell, BarCount + 1, ( CBP + 0.1 ) * 1.06, colorBlue, colorwhite, 0 );
+
+        }
+        else
+            if( ( PvtVld OR PPPvtVld == 2 OR( PPPvtVld == 1 AND hourpivot == 0 ) ) AND NOT PPCond  AND dispflag )
+            {
+                pivotprice = "BP:   $" + NumToStr( PvtHigh + 0.1, 		8.2, False );
+                limitprice = "Lim: $"  + NumToStr( ( PvtHigh + 0.1 ) * 1.01, 8.2, False );
+                PlotText( pivotprice, BarCount + 1, PvtHigh + 0.1, colorGreen, colorwhite, 0 );
+                PlotText( limitprice, BarCount + 1, ( PvtHigh + 0.1 ) * 1.01, colorGreen, colorwhite, 10 );
+
+                stop2 = "2% STP: $" + NumToStr( ( PvtHigh + 0.1 ) * 0.98, 8.2, False );
+                stop4 = "4% STP: $" + NumToStr( ( PvtHigh + 0.1 ) * 0.96, 8.2, False );
+                HRsell = "2R Sell: $" + NumToStr( ( PvtHigh + 0.1 ) * 1.06, 8.2, False );
+                PlotText( stop2, BarCount + 1, ( PvtHigh + 0.1 ) * 0.98, colorGreen, colorwhite );
+                PlotText( stop4, BarCount + 1, ( PvtHigh + 0.1 ) * 0.96, colorGreen, colorwhite, 0 );
+                PlotText( HRsell, BarCount + 1, ( PvtHigh + 0.1 ) * 1.06, colorGreen, colorwhite, 0 );
+            }
+            else
+                if( PPPvtVld == 1 AND hourpivot > 0 )
+                {
+                    pivotprice = "BP:   $" + NumToStr( hourpivot + 0.1, 	   8.2, False );
+                    limitprice = "Lim: $"  + NumToStr( ( hourpivot + 0.1 ) * 1.01, 8.2, False );
+                    PlotText( pivotprice, BarCount + 1, hourpivot + 0.1, colorGreen, colorwhite,   0 );
+                    PlotText( limitprice, BarCount + 1, ( hourpivot + 0.1 ) * 1.01, colorGreen, colorwhite,   10 );
+
+                    stop2 = "2% STP: $" + NumToStr( ( hourpivot + 0.1 ) * 0.98, 8.2, False );
+                    stop4 = "4% STP: $" + NumToStr( ( hourpivot + 0.1 ) * 0.96, 8.2, False );
+                    HRsell = "2R Sell: $" + NumToStr( ( hourpivot + 0.1 ) * 1.06, 8.2, False );
+                    PlotText( stop2, BarCount + 1, ( hourpivot + 0.1 ) * 0.98, colorGreen, colorwhite, 0 );
+                    PlotText( stop4, BarCount + 1, ( hourpivot + 0.1 ) * 0.96, colorGreen, colorwhite, 0 );
+                    PlotText( HRsell, BarCount + 1, ( hourpivot + 0.1 ) * 1.06, colorGreen, colorwhite, 0 );
+                }
+                else
+                    if( PPCond AND PvtVld )
+                    {
+                        pivotprice = "BP:   $" + NumToStr( LastValue( H ) + 0.1, 		8.2, False );
+                        limitprice = "Lim: $"  + NumToStr( ( LastValue( H ) + 0.1 ) * 1.01,     8.2, False );
+                        PlotText( pivotprice, BarCount + 1, LastValue( H ) + 0.1, colorGreen, colorwhite, 0 );
+                        PlotText( limitprice, BarCount + 1, ( LastValue( H ) + 0.1 ) * 1.01, colorGreen, colorwhite, 10 );
+
+                        stop2 = "2% STP: $" + NumToStr( ( LastValue( H ) + 0.1 ) * 0.98, 8.2, False );
+                        stop4 = "4% STP: $" + NumToStr( ( LastValue( H ) + 0.1 ) * 0.96, 8.2, False );
+                        HRsell = "2R Sell: $" + NumToStr( ( LastValue( H ) + 0.1 ) * 1.06, 8.2, False );
+                        PlotText( stop2, BarCount + 1, ( LastValue( H ) + 0.1 ) * 0.98, colorGreen, colorwhite, 0 );
+                        PlotText( stop4, BarCount + 1, ( LastValue( H ) + 0.1 ) * 0.96, colorGreen, colorwhite, 0 );
+                        PlotText( HRsell, BarCount + 1, ( LastValue( H ) + 0.1 ) * 1.06, colorGreen, colorwhite, 0 );
+                    }
+
+    CondH = ( H == PvtHigh OR H == PrevHigh OR H == PPHigh ) AND ConIndex;
+
+    if( PvtIndex[1] == 0 )
+        CondH[BarCount - 1] = True;
+
+    CondLPP  = BarIndex() == BarCount - 1 AND PPCond;
+    CondLPvt = BarIndex() >= BarCount - SwingIndex( ConIndex, PvtIndex[2] ) - 1 AND L == PvtLow;
+    CondLPrv = BarIndex() >= BarCount - SwingIndex( ConIndex, PvtIndex[4] ) - 1 AND BarIndex() <= BarCount - SwingIndex( ConIndex, PvtIndex[2] ) + 1 AND L == PrevLow AND NOT IsNull( PrevH );
+
+    CondL = CondLPP OR CondLPvt OR CondLPrv;
+
+    if( dispflag )
+    {
+        PlotShapes( IIf( CondH, shapeDownArrow, shapeNone ), colorGreen, 0, Graph0High, -20 );
+        PlotShapes( IIf( CondL, shapeUpArrow,   shapeNone ), colorGreen, 0, Graph0Low , -20 );
+
+        PlotShapes( IIf( BarIndex() == BarCount - 1 AND PPPvtVld == 1, shapeDownArrow, shapeNone ), colorOrange, 0, Graph0High , -40 );
+    }
+    
+    if( PBActive )
+    {
+		PlotShapes( IIf( H == PvtHigh, shapeDownArrow, shapeNone ), colorBlue, 0, Graph0High, -20 );
+		PlotShapes( IIf( L == LastValue(Ref( L, 0 )), shapeUpArrow, shapeNone ), colorBlue, 0, Graph0Low, -20 );
+	}
+
+}
+
+
+
+//////////////////////////////////
+// Price Dispersion code
+/*
+{
+    // calculate regression parameters for tuneable range
+    LRdays = 5;
+
+    // calculate middle of bar
+    PDID   = ( H - L ) / 2 + L;
+
+    PDInt  = LastValue( LinRegIntercept( PDID, LRdays ) );
+    PDSlp  = LastValue( LinRegSlope( PDID, LRdays ) );
+
+    // calculate regression line
+    PDx    = Cum( 1 );
+    PDline = PDSlp * ( PDx - ( LastValue( PDx - LRdays ) ) ) + PDInt;
+
+    // calculate the absolute value of the difference from the high and low to the regression line in percent
+    PDdH = abs( H - PDLine ) / PDLine;
+    PDdL = abs( L - PDLine ) / PDLine;
+
+    // calculate the dispersion (array-based)
+    PriceDisp = ( Sum( PDdH, LRdays ) + Sum( PDdL, LRdays ) ) / ( LRdays * 2 );
+
+    //plot dispersion line
+    PDLPlot = PDLine;
+    PDLPlot = IIf( BarIndex() < BarCount - 5, Null, PDLPlot );
+
+    //Plot(PDLPlot, "Price Disperson Line", colorTeal, styleThick);
+
+}
+*/
+
+// plot ATH if close
+ATH 	= LastValue( Highest( H ) );
+athline = LineArray( BarCount - 61, ATH, BarCount - 51, ATH );
+
+if( BarCount > 52 AND LastValue( H ) > ATH*.85 )
+{
+    Plot( athline, "ATH", colorPink, styleDashed );
+    PlotText( "ATH", BarCount - 61, ATH * 1.001, colorPink );
+}
+
+// plot 104 wk high if close
+HFWH 	= LastValue( HHV( H, 252*2 ) );
+ftwhline = LineArray( BarCount - 51, HFWH, BarCount - 41, HFWH );
+
+if( BarCount > 252*2 AND LastValue( H ) > HFWH*.85 )
+{
+    Plot( ftwhline, "ATH", colorDarkTeal, styleDashed );
+    PlotText( "104 Wk-High", BarCount - 51, HFWH * 1.001, colorDarkTeal );
+}
+
+
+// plot 52 wk high if close
+FTWH 	= LastValue( HHV( H, 252 ) );
+ftwhline = LineArray( BarCount - 41, FTWH, BarCount - 31, FTWH );
+
+if( BarCount > 52 AND LastValue( H ) > FTWH*.85 )
+{
+    Plot( ftwhline, "ATH", colorDarkYellow, styleDashed );
+    PlotText( "52 Wk-High", BarCount - 41, FTWH * 1.001, colorDarkYellow );
+}
+
+
+// fix chart to percentage
+// chart options
+
+Hv	= HighestVisibleValue( H );
+
+slideval = 1.03;
+ymin = Hv * 0.60; 
+
+ymax = IIf( VldCSBase OR VldPPBase, LHSPrice * slideval, IIf( VldCapBase, Max( ( PvtHigh + 0.1 ) * slideval, Hv * slideval ), Hv * slideval ) );
+SetChartOptions( 1, chartShowArrows | chartShowDates, chartGridMiddle, ymin, ymax * 1.1 );
+//SetChartOptions(0);
+
+
+
+// LOW-LEVEL GRAPHICS OVERLAY CODE
+enable = 1;
+_SECTION_BEGIN( "Text spacing" );
+{
+    strt   			= Param( "Info Field Bias", 50 );
+    inc	   			= Param( "Text Spacing", 22 );
+    left   			= Param( "Left tab", 20 );
+    fontsize		= Param( "Font Size", 47 );
+    infogapfield	= Param( "Detailed Info Bias", 0 );
+
+}
+_SECTION_END();
+
+// in watchlist
+
+rowval = strt;
+
+ListNum = CategoryFind( "Interesting Stocks", categoryWatchlist );
+GfxSetBkMode( 2 );
+GfxSetBkColor( colorWhite );
+GfxSelectFont( "Calibri", fontsize / 3, 1000, False, False, 0 );
+GfxSetTextColor( colorIndigo );
+WLstar = WriteIf( InWatchList( ListNum ), "*", "" );
+GfxTextOut( WLstar, left - 15, rowval + fontsize / 3 );
+
+ListNum = CategoryFind( "Buy List", categoryWatchlist );
+GfxSelectFont( "Calibri", fontsize / 3, 1000, False, False, 0 );
+WLS = WriteIf( InWatchList( ListNum ), "S", "" );
+GfxTextOut( WLS, left - 15, rowval + fontsize * 0.80 );
+
+GfxSelectFont( "Calibri", fontsize / 3, 1000, False, False, 0 );
+WLS = WriteIf( IsFavorite(), "F", "" );
+GfxTextOut( WLS, left - 15, rowval + fontsize * 1.4 );
+
+GfxSelectFont( "Calibri", fontsize / 4, 1000, False, False, 0 );
+WLS = WriteIf( InWatchListName("weeklyDS"), "W", "" );
+GfxTextOut( WLS, left - 17, rowval + fontsize * 2	 );
+
+
+// Ticker
+GfxSelectFont( "Calibri", fontsize, 1000, False, False, 0 );
+thecolor = iif( ROC( C, 1 ) > 0, colorGreen, colorRed );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( Tick, left, rowval );
+rowval += 3.5 * inc;
+
+// determine earnings dates
+ih = InternetOpenURL( "https://cloud.iexapis.com/stable/stock/" + Tick + "/stats/nextEarningsDate" + "?token=" + "pk_52a6e86a06334512bce426aaf3f28dca" );
+
+// default assignment
+ED = "N/A";
+
+if( ih AND NOT StrFind(Tick, "$"))
+{
+    str = InternetReadString( ih );
+
+    ED = StrMid( str, 1, 10 );
+}
+
+if (ih) InternetClose( ih );
+
+GfxSelectFont( "Calibri", fontsize / 4, 1000, False, False, 0 );
+GfxSetTextColor( colorBlack );
+
+GfxTextOut( GetFnData( "FullName" ), left, rowval );
+rowval += inc;
+GfxTextOut( "ED: " + ED, left, rowval );
+rowval += inc;
+
+// GICS and market
+GfxSetTextColor( colorViolet );
+GfxSelectFont( "Calibri", fontsize / 4, 1000, False, False, 0 );
+
+// get industry RS
+GID = GicsID( 0 );
+GID_RS = StaticVarGet( "GicsID_" + GID );
+
+//GfxTextOut( GicsID( 0 ), left, rowval );
+//rowval += inc/1.4;
+GfxTextOut( GicsID( 1 ), left, rowval );
+rowval += inc / 1.4;
+GfxTextOut( "GICS_RS = " + NumToStr( GID_RS, 3.0 ), left, rowval );
+rowval += inc / 1.4;
+
+x = MarketID( 1 );
+GfxTextOut( MarketID( 1 ), left, rowval );
+
+
+// RS
+rowval += inc;
+GfxSelectFont( "Calibri", fontsize / 3, 1000, False, False, 0 );
+
+RStext = WriteIf( IPO, "IPO", WriteIf( IsNull(RS), "N/A", NumToStr( RS, 1 ) ) );
+thecolor = iif( RS > 89, colorGreen, IIf( StrMatch( RStext, "N/A" ), colorDarkYellow, colorRed ) );
+
+RS3 = StaticVarGet("RS3_" + Tick);
+RS3text = WriteIf( IPO, "", WriteIf( IsNull(RS3), "", "3mth: " + NumToStr( RS3, 1 ) ) );
+thecolor = iif( RS3 > 89, colorGreen, IIf( StrMatch( RS3text, "" ), colorDarkYellow, colorRed ) );
+
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "RS: " + RStext + "   " + RS3text, left, rowval );
+rowval += inc + infogapfield * 3;
+
+// FuelTank
+FTtext = WriteIf( BarCount < 50, "IPO", NumToStr( FuelTank, 1 ) );
+thecolor = iif( FuelTank > 0, colorGreen, IIf( StrMatch( FTtext, "N/A" ), colorDarkYellow, colorRed ) );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "Fuel Tank: " + FTtext, left, rowval );
+rowval += inc + 10 + infogapfield * 3;
+
+
+if( dispflag ) // Ticker and VCP graphics code
+{
+    // detailed data
+
+    // start row value
+
+    GfxSelectFont( "Calibri", fontsize / 3, 1000, False, False, 0 );
+
+    // Trending data
+    Trend = WriteIf( LastValue( TF ), "Stage 2 Uptrend", "Not in Stage 2 Uptrend" );
+    thecolor = IIf( TF, colorGreen, colorRed );
+    GfxSetTextColor( thecolor[BarCount - 1] );
+    GfxTextOut( Trend, left, rowval );
+    rowval += inc;
+
+    // Base, contraction and pivot data
+    Base = WriteIf( VldCapBase, "Valid Cap Base", WriteIf( VldCSBase, "Valid CS Base", WriteIf( VldPPBase, "Valid PS Base", WriteIf( ValidConsolidation, "Valid Consolidation", "Invalid Base" ) ) ) );
+    thecolor = iif( StrMatch( "Valid CS Base", Base ) OR StrMatch( "Valid Cap Base", Base ) OR StrMatch( "Valid PS Base", Base ), colorGreen, IIf(StrMatch( "Valid Consolidation", Base ), colorBlue, colorRed ) );
+    GfxSetTextColor( thecolor[BarCount - 1] );
+    GfxTextOut( Base, left, rowval );
+    rowval += inc;
+
+    // Base len
+    if( VldCapBase OR VldCSBase OR VldPPBase )
+    {
+        thecolor = IIf(LHSBars >= 25, colorGreen, IIf(LHSBars > 20, colorDarkYellow, colorRed) );
+        GfxSetTextColor( thecolor );
+        GfxTextOut( "Base Length: " + NumToStr( LHSBars, 1.0 ) + " bars", left, rowval );
+        rowval += inc;
+    }
+
+    PvtGood = PvtH < IIf( PPCond,  6.05, 4.05 );
+    PvtWide = PvtH < IIf( PPCond, 10.05, 6.55 );
+
+    Pvt = WriteIf( PBActive, "Manual Pivot/Pullback", WriteIf(PPCond, "Valid Pause Pivot", WriteIf( PvtVld AND PvtGood, "Valid Classic Pivot", WriteIf( PvtVld AND PvtWide, "Valid Wide Pivot", WriteIf( PPPvtVld == 2, "Valid PS Pivot", WriteIf( PPPvtVld, "Possible Hourly PS Pivot", "Invalid Pivot" ) ) ) ) ) );
+    Pvt = WriteIf(custompivot, "Custom Pivot", Pvt);
+    Pvt = WriteIf( hourpivot > 0, "Hourly PS Pivot", Pvt );
+
+    thecolor = IIf( StrMatch( Pvt, "Manual Pivot/Pullback" ), colorBlue, iif( StrMatch( "Valid Pause Pivot", Pvt ) OR StrMatch( "Valid Classic Pivot", Pvt ) OR StrMatch( "Valid PS Pivot", Pvt ) OR StrMatch( "Hourly PS Pivot", Pvt ), colorGreen, IIf( StrMatch("Valid Wide Pivot", Pvt ), colorDarkGreen, IIf( StrMatch( "Possible Hourly PS Pivot", Pvt ), colorOrange, colorRed ) ) ) );
+    thecolor = IIf(custompivot, colorBlue, thecolor);
+    GfxSetTextColor( thecolor[BarCount - 1] );
+    GfxTextOut( Pvt, left, rowval );
+    rowval += inc;
+
+    // pause pivot
+    if( PPCond AND( PvtVld OR PPPvtVld == 1 ) AND NOT( PPPvtVld = 1 AND hourpivot > 0 ) AND NOT PBActive)
+    {
+        PvtStr = "Pause Pivot Con: "    + WriteIf( IsNull( PPH ), "N/A", NumToStr( PPH,  1.1 ) + "%" );
+        thecolor = iif( PPH <= 8, colorGreen, IIf( PPPvtVld == 1, colorOrange, colorRed ) );
+        GfxSetTextColor( thecolor[BarCount - 1] );
+        GfxTextOut( PvtStr, left + 5, rowval );
+        rowval += inc;
+    }
+
+	
+	if( NOT PBActive )
+	{
+		PvtStr = "PvtCon: "    + WriteIf( IsNull( PvtH ), "N/A", NumToStr( PvtH,  1.1 ) + "%" );
+	
+		thecolor = IIf( PvtGood, colorGreen, IIf( PvtWide, colorDarkOliveGreen, IIf( PPPvtVld, colorOrange, IIf( PPCond, colorDarkYellow, colorRed ) ) ) );
+
+		GfxSetTextColor( thecolor[BarCount - 1] );
+		GfxTextOut( PvtStr, left + 5, rowval );
+		rowval += inc;
+
+		PrvStr = "PrvCon: "    + WriteIf( IsNull( PrevH ), "N/A", NumToStr( PrevH, 1.1 ) + "%" );
+		thecolor = iif( PPPvtVld > 0 OR PrevH <= 16, colorGreen, colorDarkYellow );
+		GfxSetTextColor( thecolor[BarCount - 1] );
+		GfxTextOut( PrvStr, left + 5, rowval );
+		rowval += inc;
+
+		if( PPCond )
+			Ovlp  = Overlap( L, H, O, C, ConIndex, PvtIndex[0], PvtIndex[1], PvtIndex[2], PvtIndex[3] );
+		else
+			Ovlp  = Overlap( L, H, O, C, ConIndex, PvtIndex[2], PvtIndex[3], PvtIndex[4], PvtIndex[5] );
+	
+		Ovstr = "Overlap: " + WriteIf( IsNull( Ovlp ) OR( PvtH <= 6.55 AND PrevH <= 6.55 ), "N/A", NumToStr( ovlp,  1.1 ) + "%" );
+
+		thecolor = iif( ( Ovlp > 23.6 AND Ovlp < 61.798 ) OR StrMatch( Ovstr, "Overlap: N/A" ), colorGreen, IIf( IsNull( Ovlp ), colorDarkYellow, colorRed ) );
+		GfxSetTextColor( thecolor[BarCount - 1] );
+		GfxTextOut( Ovstr, left + 5, rowval );
+		rowval += inc;
+
+		thecolor = IIf( Depth < 25, colorGreen, IIf( Depth < 35, colorDarkYellow, colorRed ) );
+		GfxSetTextColor( thecolor );
+	}
+
+    if( NOT IsNull( Depth ) )
+    {
+        GfxTextOut( "Base Depth: " + NumToStr( Depth, 1.1 ) + "%", left + 5, rowval );
+        rowval += inc;
+    }
+
+    /*
+    VolDryUp = WriteIf(VolOK[0], "Volume Dry Up OK", "Volume Dry Up Not OK");
+    thecolor = iif(VolOK[0], colorLime, colorRed);
+    GfxSetTextColor(thecolor[BarCount-1]);
+    GfxTextOut(VolDryUp, 65, rowval);
+    rowval += inc;
+
+    VolAcc   = WriteIf(VolOK[1], "Volume Accumulation OK", "Volume Accumulation Not OK");
+    thecolor = iif(VolOK[1], colorLime, colorRed);
+    GfxSetTextColor(thecolor[BarCount-1]);
+    GfxTextOut(VolAcc, 65, rowval);
+    rowval += inc;
+
+    PDtext = NumToStr(PriceDisp*100, 1.1);
+    PDSlpt = NumToStr(PDSlp*100/LastValue(C), 1.1);
+    thecolor = iif(PriceDisp <= 0.05, colorLime, colorRed);
+    GfxSetTextColor(thecolor[BarCount-1]);
+    GfxTextOut("Price Dispersion: " + PDtext + " %,  slope: " + PDSlpt + " %" , 65, rowval);
+    rowval += inc;
+    */
+
+
+}
+
+
+// dolvol
+rngdolvol = LastValue( BarsSince( IsNull( C ) ) ) - 1;
+
+if( rngdolvol < 0 )
+    rngdolvol = 50;
+
+dolvol 		= C * MA( V, Min( 50, rngdolvol ) );
+dolvoltext 	= "DolVol: " + NumToStr( LastValue( dolvol ), 1.0 ) + " $";
+IPODVOK 	= ( BarCount <= 12 * 21 AND LastValue( dolvol ) >= 2.5e7 );
+ClassicDVOK = LastValue( dolvol ) >= 1e7;
+PPDVOK		= LastValue( dolvol ) >= 2.5e7 AND VldPPBase;
+thecolor 	= IIf( IPODVOK OR ClassicDVOK OR PPDVOK, colorGreen, colorRed );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( dolvoltext, left, rowval );
+rowval += inc;
+
+// float
+Float   = GetFnData( "SharesFloat" );
+thecolor = iif( Float < 3e7, colorGreen, colorDarkYellow );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "Float: " + NumToStr( Float / 1e6, 1.1 ) + " Msh", left, rowval );
+rowval += inc;
+
+// ADR
+ADR = 100 * ( MA( H / L, 20 ) - 1 );
+thecolor = iif( round( ADR * 10 ) / 10 >= 3, colorGreen, colorDarkYellow );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "ADR: " + NumToStr( ADR, 1.1 ), left, rowval );
+rowval += inc;
+
+// U/D ratio
+upday   = C > Ref( C, -1 );
+downday = NOT( upday );
+upvol   = Sum( upday*V,   50 );
+downvol = Sum( downday*V, 50 );
+udratio = SafeDivide(upvol, downvol);
+
+thecolor = iif( udratio >= 1.2, colorGreen, colorDarkYellow );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "U/D Ratio: " + NumToStr( udratio, 1.1 ), left, rowval );
+rowval += inc;
+
+// TI65
+TI65 = MA( C, 7 ) / MA( C, 65 );
+thecolor = iif( TI65 >= 1.1, colorGreen, colorDarkYellow );
+GfxSetTextColor( thecolor[BarCount - 1] );
+GfxTextOut( "TI65: " + NumToStr( TI65, 1.1 ), left, rowval );
+rowval += inc * 2;
+
+// IBD Ratings
+
+CR 	 	= StaticVarGetText( Tick + "_IBD_CR" );
+EPS  	= StaticVarGetText( Tick + "_IBD_EPS" );
+RS   	= StaticVarGetText( Tick + "_IBD_RS" );
+IGRS 	= StaticVarGetText( Tick + "_IBD_IGRS" );
+SMR  	= StaticVarGetText( Tick + "_IBD_SMR" );
+AD   	= StaticVarGetText( Tick + "_IBD_AD" );
+SPON 	= StaticVarGetText( Tick + "_IBD_SPON" );
+IGR 	= StaticVarGetText( Tick + "_IBD_IGR" );
+PTM 	= StaticVarGetText( Tick + "_IBD_PTM" );
+CYEPS 	= StaticVarGetText( Tick + "_IBD_CYEPS" );
+CQEPSE 	= StaticVarGetText( Tick + "_IBD_CQEPSE" );
+LQEPS 	= StaticVarGetText( Tick + "_IBD_LQEPS" );
+LQS 	= StaticVarGetText( Tick + "_IBD_LQS" );
+
+// numbers need conversion
+CRnum 		= StrToNum( StaticVarGetText( Tick + "_IBD_CR"		));
+EPSnum		= StrToNum( StaticVarGetText( Tick + "_IBD_EPS"		));
+RSnum		= StrToNum( StaticVarGetText( Tick + "_IBD_RS" 		));
+IGRnum		= StrToNum( StaticVarGetText( Tick + "_IBD_IGR"		));
+PTMnum 		= StrToNum( StaticVarGetText( Tick + "_IBD_PTM"		));
+CYEPSnum	= StrToNum( StaticVarGetText( Tick + "_IBD_CYEPS"	));
+CQEPSEnum	= StrToNum( StaticVarGetText( Tick + "_IBD_CQEPSE"	));
+LQEPSnum	= StrToNum( StaticVarGetText( Tick + "_IBD_LQEPS" 	));
+LQSnum		= StrToNum( StaticVarGetText( Tick + "_IBD_LQS"		));
+
+GfxSelectFont( "Calibri", fontsize / 4.5, 1000, False, False, 0 );
+GfxSetTextColor( colorBlack );
+colval = 20;
+cb = 30;
+
+bias = 0.71;
+cb = 45;
+shift = 3;
+
+GfxSelectSolidBrush( colorWhite );
+GfxRectangle( colval - 10, rowval - 3, colval + cb * 6.0, rowval + cb * 1.9 );
+GfxPolyline( colval - 10, rowval + bias * 44, colval + cb * 6.0, rowval + bias * 44 );
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "CR", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(CRnum >= 95, colorGreen, IIf(CRnum >=90, colorDarkYellow, colorRed ) ) );
+GfxTextOut( CR, colval, rowval );
+rowval += inc * bias + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "LQE", colval, rowval );
+rowval += inc * bias;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "CQE", colval, rowval );
+rowval += inc * bias;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "YE", colval, rowval );
+rowval += inc * bias;
+colval += cb;
+rowval -= inc * bias * 5 + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "EPS", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(EPSnum >= 25, colorGreen, IIf(EPSnum >= 20, colorDarkYellow, colorRed ) ) );
+GfxTextOut( EPS, colval, rowval );
+GfxSetBkColor( colorWhite );
+rowval += inc * bias + shift;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(LQEPSnum >= 25, colorGreen, IIf(LQEPSnum >= 20, colorDarkYellow, colorRed ) ) );
+GfxTextOut( LQEPS + "%", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(CQEPSEnum >= 25, colorGreen, IIf(CQEPSEnum >= 20, colorDarkYellow, colorRed ) ) );
+GfxTextOut( CQEPSE + "%", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(CYEPSnum >= 25, colorGreen, IIf(CYEPSnum >= 20, colorDarkYellow, colorRed ) ) );
+GfxTextOut( CYEPS + "%", colval, rowval );
+rowval += inc * bias;
+colval += cb;
+rowval -= inc * bias * 5 + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "RS", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(RSnum >= 90, colorGreen, IIf(RSnum >= 80, colorDarkYellow, colorRed ) ) );
+GfxTextOut( RS, colval, rowval );
+rowval += inc * bias + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "Rnk", colval, rowval );
+rowval += inc * bias;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "SPON", colval, rowval );
+rowval += inc * bias;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "ROE", colval, rowval );
+rowval += inc * bias;
+colval += cb;
+rowval -= inc * bias * 5 + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "IGRS", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( getGradeColor( IGRS ) );
+GfxTextOut( IGRS, colval, rowval );
+rowval += inc * bias + shift;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(IGRnum <= 20, colorGreen, IIf(IGRnum <= 40, colorDarkYellow, colorRed ) ) );
+GfxTextOut( IGR, colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( getGradeColor( SPON ) );
+GfxTextOut( " " + SPON, colval, rowval );
+rowval += inc * bias;
+
+ROE = GetFnData( "ReturnOnEquity" );
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(ROE >= 17, colorGreen, IIf(ROE >= 12, colorDarkYellow, colorRed ) ) );
+GfxTextOut( NumToStr( ROE, 3.0 ) + "%", colval - 8, rowval );
+rowval += inc * bias;
+colval += cb;
+rowval -= inc * bias * 5 + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "AD", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( getGradeColor( AD ) );
+GfxTextOut( AD, colval, rowval );
+rowval += inc * bias + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "LQS ", colval, rowval );
+rowval += inc * bias;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "PTM ", colval, rowval );
+colval += cb;
+rowval -= inc * bias * 3 + shift;
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxTextOut( "SMR", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( getGradeColor( SMR ) );
+GfxTextOut( SMR, colval, rowval );
+rowval += inc * bias + shift;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(LQSnum >= 20, colorGreen, IIf(LQSnum >= 15, colorDarkYellow, colorRed ) ) );
+GfxTextOut( LQS + "%", colval, rowval );
+rowval += inc * bias;
+
+GfxSetTextColor( colorWhite );
+GfxSetBkColor( IIf(PTMnum >= 20, colorGreen, IIf(PTMnum >= 15, colorDarkYellow, colorRed ) ) );
+GfxTextOut( PTM + "%", colval, rowval );
+rowval += inc * bias;
+rowval -= inc * bias * 4 + shift;
+
+oldcolval = colval;
+oldrowval = rowval;
+
+GfxSetTextColor( colorDefault );
+GfxSetBkColor(   colorWhite   );
+
+//watchlists
+
+rowval = 50;
+inc = inc / 1.2;
+colval = 250;
+GfxSelectFont( "Calibri", fontsize / 4, 800, False, False, 0 );
+GfxSetTextColor( colorBlack );
+
+GfxTextOut( "Watchlists:", colval, rowval );
+
+rowval += inc;
+
+wlname = "DMT Choice";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxSelectFont( "Calibri", fontsize / 4, 700, False, False, 0 );
+    GfxSetBkColor( colorBlack );
+    GfxSetTextColor( colorGold );
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "rocketPower Select";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxSelectFont( "Calibri", fontsize / 4, 700, False, False, 0 );
+    GfxSetBkColor( colorBlack );
+    GfxSetTextColor( colorLime );
+    GfxTextOut( "@" + wlname, colval, rowval );
+    rowval += inc;
+}
+
+
+GfxSetBkColor( colorWhite );
+GfxSetTextColor( colorBlack );
+GfxSelectFont( "Calibri", fontsize / 4, 400, False, False, 0 );
+
+
+wlname = "DMT RS Accel";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "DMT Blue Dot";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD 50";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Big Cap 20";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Sector Leaders";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Stock Spotlight";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD IPO Leaders";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD New Highs";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD RS New Highs";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Global Leaders";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Rising Profits";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Stocks that Funds are Buying";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD CAN SLIM SELECT";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBD Your Weekly Review";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBDSS Top Dogs";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "IBDSS Crazy SEP";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "Cybersecurity and AI";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "DMT RGS Log";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+wlname = "DMT EXCLUDE LIST";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+
+if( InWatchList( wlnum ) )
+{
+    GfxSetTextColor( colorRed );
+    GfxSelectFont( "Calibri", fontsize / 4, 800, False, False, 0 );
+
+    GfxTextOut( wlname, colval, rowval );
+    rowval += inc;
+}
+
+////// end disp
+
+// VCP Graphics
+// Using GetAsyncKeyState()
+nMM = 6; //Max no. of MM lines
+
+bi = BarIndex();
+dt = DateTime();
+t = 0;
+pct = "";
+duration = "";
+titel_new = "";
+MouseBtn = GetCursorMouseButtons();
+LeftJustClkd = MouseBtn & 8;
+LeftClkDownRlsd = MouseBtn & 9;
+MiddleClkd = MouseBtn & 4;
+chartId = Tick + Interval();
+
+x = GetCursorXPosition( 0 );
+y = GetCursorYPosition( 0 );
+
+if( GetAsyncKeyState( 48 ) < 0 OR GetAsyncKeyState( 96 ) < 0 AND MiddleClkd )
+{
+    StaticVarRemove( "x1*" );
+    StaticVarRemove( "y1*" );
+    StaticVarRemove( "x2*" );
+    StaticVarRemove( "y2*" );
+    StaticVarRemove( "pct_t*" );
+}
+
+for( i = 49; i <= 48 + nMM; i++ )
+{
+    riMM = i - 48;
+    DigitPressed = GetAsyncKeyState( i ) < 0 || GetAsyncKeyState( i + 48 ) < 0;
+
+    if( DigitPressed )
+    {
+        // This elegant technique shared by @Milosz
+        if( LeftJustClkd )
+        {
+            StaticVarSet( "x1" + chartId + riMM, x, 0 );
+            StaticVarSet( "y1" + chartId + riMM, y, 0 );
+            StaticVarSet( "y1_start" + chartId + riMM, bi, 0 );
+
+        }
+
+        if( LeftClkDownRlsd )
+        {
+            StaticVarSet( "x2" + chartId + riMM, x, 0 );
+            StaticVarSet( "y2" + chartId + riMM, y, 0 );
+        }
+
+        if( MiddleClkd )
+        {
+            StaticVarRemove( "x1" + chartId + riMM );
+            StaticVarRemove( "y1" + chartId + riMM );
+            StaticVarRemove( "x2" + chartId + riMM );
+            StaticVarRemove( "y2" + chartId + riMM );
+            StaticVarRemove( "pct_t" + chartId + riMM );
+        }
+
+        RequestMouseMoveRefresh();
+    }
+}
+
+GfxSetBkMode( 1 );
+GfxSetCoordsMode( 1 ); // mode = 1 - bar / price mode where X is expressed in bar index and Y is expressed in price.
+
+for( i = 1; i <= nMM; i++ )
+{
+    x1 = Lookup( bi, StaticVarGet( "x1" + chartId + i ) );
+    y1 = StaticVarGet( "y1" + chartId + i );
+    x2 = Lookup( bi, StaticVarGet( "x2" + chartId + i ) );
+    y2 = StaticVarGet( "y2" + chartId + i );
+
+    if( x1 != 0 AND x2 != 0 )
+    {
+        t++;
+        GfxSelectPen( colorGrey50, 2, 1 );
+        GfxMoveTo( x1, y1 );
+        GfxLineTo( x2, y2 ); 	// Diagonal line
+
+        GfxSelectFont( "Courier New", fontsize / 4, 700 );
+        pct0 = NumToStr( abs( y2 / y1 - 1 ) * 100, 1.0, False );
+        pct1 = NumToStr( abs( y2 / y1 - 1 ) * 100, 1.1, False );
+        GfxTextOut( "   T" + NumToStr( i, 1.0 ) + ": " + pct1 , x1, y1 );
+        StaticVarSetText( "pct_t" + chartId + i, pct0, false );
+    }
+}
+
+// draw logos
+GfxSetZOrder( -1 );
+
+pxw = Status( "pxwidth" );
+pxh = Status( "pxheight" );
+
+GfxDrawImage( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\dmt.png", pxw - 230, pxh - 240 );
+
+logofilepathname = "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\LOGO\\" + Tick + ".png";
+logomissing = IsNull(fgetstatus(logofilepathname, 0,3));
+
+if ( NOT logomissing )
+	GfxDrawImage( logofilepathname, 20, pxh - 160 );
+
+// draw Norgate logo
+GfxDrawImage( "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\LOGO\\" + "norgate" + ".png", pxw-270, pxh - 50 );
+
+GfxSetZOrder(0);
+// draw earnings
+GfxDrawImage( "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\earnings\\" + Tick + ".png", 10, oldrowval+84 );
+
+// summaries
+
+BS = NorgateBusinessSummary();
+//FS = NorgateFinancialSummary();
+
+GfxSelectFont( "calibri", 12 );
+GfxDrawText( BS, 775 -320, 50, 900, 1500, 16 );
+//GfxDrawText( FS, 1150-450, 660-600, 1450-500, 1500, 16 );
+
+
+_SECTION_END();
+
+
+_SECTION_BEGIN( "Pocket Pivot Detection" );
+
+// Pocket Pivot Definition
+
+//Buy volume must be larger than the sell volume of the last 10 days
+//Price has to be relatively close to the 10-day MA or 50 day (default 3% within the MA)
+
+//Adjustable Parameters
+PP  = ParamColor( "Pocket Pivot", colorLime );
+detWidth = Param( "Width of Detection (% around 10day)", 3, 0.1, 10, 0.1 );
+
+//Logic for High Relative Volume
+Up = C > Ref( H, -1 ) * 1.002;			// changed so that the close has to be above the prev day high
+Down = C < Ref( H, -1 ) * 0.998;		// otherwise this will catch inside days as pocket pivots.
+// Using H instead of C will not be robust to squats
+
+Vup 	= V * Up;
+Vdown 	= V * Down;
+HighVol = HHV( Vdown, 10 );
+VolBO = V * Up > HighVol;
+
+//Logic for Trading Range ten day
+PPMA10		= MA( C, 10 );
+LowerPP10 	= PPMA10 * ( 1 - detWidth / 100 );
+UpperPP10 	= PPMA10 * ( 1 + detWidth / 100 );
+PPRange10 	= H > LowerPP10 AND H < UpperPP10;
+PPRange10 	= Ref( PPRange10, -1 ); // you care about the range of the setup, not the pivot, so look yesterday
+
+//Logic for Trading Range twenty day
+PPMA20		= MA( C, 20 );
+LowerPP20 	= PPMA20 * ( 1 - detWidth / 100 );
+UpperPP20 	= PPMA20 * ( 1 + detWidth / 100 );
+PPRange20 	= H > LowerPP20 AND H < UpperPP20;
+PPRange20	= Ref( PPRange20, -1 ); // you care about the range of the setup, not the pivot, so look yesterday
+
+//Logic for Trading Range fifty day
+PPMA50		= MA( C, 50 );
+LowerPP50 	= PPMA50 * ( 1 - detWidth / 100 );
+UpperPP50 	= PPMA50 * ( 1 + detWidth / 100 );
+PPRange50 	= H > LowerPP50 AND H < UpperPP50;
+PPRange50	= Ref( PPRange50, -1 ); // you care about the range of the setup, not the pivot, so look yesterday
+
+//Valid Pocket Pivot
+PocketPivot = Up AND VolBO AND( PPRange10 OR PPRange20 OR PPRange50 ) AND MA( C, 50 ) > MA( C, 200 );
+PocketPivot = ExRem( pocketpivot, NOT pocketpivot ); // remove consecutive flags
+
+// remove erroneous PPs that are just uptrends
+NotPPJustUT = Ref( H == HHV( H, 10 ), -1 );
+PocketPivot = PocketPivot AND NOT( NotPPJustUT );
+
+//Color Bars
+PlotShapes( shapeSmallCircle * PocketPivot, PP, 0, L, -12, 0 );
+
+bi = BarIndex();
+
+for( i = FirstVisibleValue( bi ); i < LastVisibleValue( bi ); i++ )
+    if( PocketPivot[i] )
+        PlotText( "PP", i, L[i], PP, colorDefault, -30 );
+
+
+_SECTION_END();
+
+// display RGS results
+RO = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\GitHub\\TPT\\RGSOutput.csv", "r" );
+
+if( RO )
+{
+    lineitem = fgets( RO );	// move to header position
+    incr = 50;				// increment magnitude constant
+    incrbar = 0;			// records per bar the number of indications on the chart so they don't overlap
+
+    while( ! feof( RO ) )
+    {
+        lineitem = fgets( RO );	// next stock on list
+        RGSTick  = StrExtract( lineitem, 0 );
+
+        if( StrMatch( Tick, RGSTick ) )
+        {
+            // get buy date
+            cellstr = StrExtract( lineitem, 2 );
+            BuyDate = StrToDateTime( cellstr );
+
+            // get buy  price
+            cellstr = StrExtract( lineitem, 3 );
+            buypr 	= StrToNum( cellstr );
+
+            // get exit date
+            cellstr = StrExtract( lineitem, 4 );
+            SellDate = StrToDateTime( cellstr );
+
+            // get sell price
+            cellstr = StrExtract( lineitem, 5 );
+            sellpr 	= StrToNum( cellstr );
+
+            // get profit
+            cellstr = StrExtract( lineitem, 8 );
+            profitR = StrToNum( cellstr ) / 3;
+
+            // convert dates to bar and then to array of where it occurs
+            //bi = BarIndex();  // already defined in PP plotter, commented out here for efficiency
+            BuyBar	= Lookup( bi, BuyDate );
+            SellBar = Lookup( bi, SellDate );
+            BuyBar	= bi == BuyBar;
+            SellBar = bi == SellBar;
+
+            // plot buy arrow
+            PlotShapes( shapeDownArrow * BuyBar, colorDarkGreen, 0, H );
+            PlotShapes( shapeStar * BuyBar, colorDarkGreen, 0, buypr, 0, 0 );
+
+            // plot sale data only is trade is closed
+            TradeStatus = StrMatch( StrExtract( lineitem, 1 ), "Long" );
+
+            if( TradeStatus )
+            {
+                PlotShapes( shapeUpArrow * SellBar, colorDarkRed, 0, L );
+                PlotShapes( shapeStar * SellBar, colorDarkRed, 0, sellpr, 0, 0 );
+            }
+
+
+            for( i = FirstVisibleValue( bi ); i <= LastVisibleValue( bi ); i++ )
+            {
+                if( BuyBar[i] )
+                    PlotText( "DMT\nBUY", i - 1, H[i], colorDarkGreen, colorDefault, 60 );
+
+                // get status of trade (i.e. not open or "Long")
+                if( SellBar[i] AND StrMatch( StrExtract( lineitem, 1 ), "Long" ) )
+                {
+                    // create R profit str
+                    profitstr = NumToStr( profitR, 1.1 ) + "R";
+
+                    if( incrbar[i] > 0 )
+                    {
+                        PlotText( "DMT\nSELL\n" + profitstr, i - 1, L[i], colorDarkRed, colorDefault, -50 - incr * incrbar[i] );
+                    }
+                    else
+                    {
+                        PlotText( "DMT\nSELL\n" + profitstr, i - 1, L[i], colorDarkRed, colorDefault, -50 );
+
+                        incrbar[i]++;
+                    }
+                }
+
+            }
+        }
+    } // end while
+
+    fclose( RO );
+} // end if
+
+// splits and dividends using norgate data
+dividenddate = GetFnData( "DividendPayDate" );
+dividendval  = GetFnData( "DividendPerShare" );
+splitdate	 = GetFnData( "LastSplitDate" );
+splitval	 = GetFnData( "LastSplitRatio" );
+
+DividendBar	= Lookup( bi, dividenddate );
+DividendBar	= bi == DividendBar;
+SplitBar	= Lookup( bi, splitdate );
+SplitBar	= bi == SplitBar;
+
+PlotShapes( IIf( DividendBar, shapeDownArrow, shapeNone ), colorDarkGrey, 0, HighestVisibleValue( H ) * 1.05, 0, 0 );
+PlotShapes( IIf( SplitBar,    shapeDownArrow, shapeNone ), colorDarkGrey, 0, HighestVisibleValue( H ) * 1.05, 0, 0 );
+
+for( i = FirstVisibleValue( bi ); i <= LastVisibleValue( bi ); i++ )
+{
+    if( DividendBar[i] )
+        PlotText( "D$" + NumToStr( dividendval, 0.2 ), i - 1, HighestVisibleValue( H ) * 1.03, colorDarkGreen, colorDefault, 60 );
+
+    if( SplitBar[i] )
+        if( splitval < 1 )
+            PlotText( "S1:" + NumToStr( 1 / splitval, 0.0 ),    i - 1, HighestVisibleValue( H ) * 1.03, colorDarkGreen, colorDefault, 60 );
+        else
+            PlotText( "S" + NumToStr( splitval, 0.0 ) + ":1", i - 1, HighestVisibleValue( H ) * 1.03, colorDarkGreen, colorDefault, 60 );
+}
+
+/*
+// chart real time bar
+_SECTION_BEGIN( "Real-Time Bar" );
+plotRTbar = ParamToggle( "Show RT Bar", "Hide|Show", 0 );
+_SECTION_END();
+
+if( False ) // plotRTBar )
+{
+    URL = "https://api.iex.cloud/v1/data/core/quote/" + Tick + "?token=pk_52a6e86a06334512bce426aaf3f28dca";
+    ih = InternetOpenURL( URL );
+
+    if( ih )
+    {
+        str = InternetReadString( ih );
+
+        // find the closing price
+        numchar = StrFind( str, "latestPrice" );
+        str2 = StrRight( str, StrLen( str ) - numchar - 12 );
+        numchar = StrFind( str2, "," );
+        rtC = StrToNum( StrLeft( str2, numchar - 1 ) );
+
+        // find the high price
+        numchar = StrFind( str, "high" );
+        str2 = StrRight( str, StrLen( str ) - numchar - 5 );
+        numchar = StrFind( str2, "," );
+        rtH = StrToNum( StrLeft( str2, numchar - 1 ) );
+
+        // find the low price
+        numchar = StrFind( str, "low" );
+        str2 = StrRight( str, StrLen( str ) - numchar - 4 );
+        numchar = StrFind( str2, "," );
+        rtL = StrToNum( StrLeft( str2, numchar - 1 ) );
+
+        // find the open price
+        numchar = StrFind( str, "iexOpen" );
+        str2 = StrRight( str, StrLen( str ) - numchar - 8 );
+        numchar = StrFind( str2, "," );
+        rtO = StrToNum( StrLeft( str2, numchar - 1 ) );
+
+        GfxSetCoordsMode( 2 );
+        GfxSelectPen( IIf( rtC > LastValue( C ), colorBlue, colorRed ), 3 );
+        GfxPolyline( 1490 - 5, rtO, 1490, rtO );
+        GfxPolyline( 1490 + 5, rtC, 1490, rtC );
+
+        if( rtL == 0 )
+        {
+            rtL = Min( rtC, rtO );
+            GfxSelectPen( colorGrey50, 3, 2 );
+        }
+
+        if( rtH == 0 )
+        {
+            rtH = Max( rtC, rtO );
+            GfxSelectPen( colorGrey50, 3, 2 );
+        }
+
+        GfxPolyline( 1490, rtL, 1490, rtH );
+        GfxSetCoordsMode( 0 );
+
+    }
+
+    InternetClose( ih );
+}
+
+*/
+
+// Manual Checklist
+// params
+GfxSetZOrder(0);
+
+// initial val constants
+xtitle_i 	= 310;
+ycl_i		= 590;
+textlen		= 415;
+
+// dynamic vals
+xtitle 	= xtitle_i;			// left margin
+xcl    	= xtitle + 5;	// checklist item indent
+ycl		= ycl_i;			// starting y position
+yincr	= 18;			// standard increment
+
+// button to display WL, will act globally
+ShowCL = StaticVarGet( "ShowCL" );
+
+// activate pullback pivot
+CLID = 99;
+
+GUIText = WriteIf( ShowCL, "Hide CL", "Show CL" );
+
+//GuiButton( GUIText, CLID, xtitle, ycl-3, 65, 20, notifyClicked );
+
+if( GuiGetEvent( 0, 0 ) == CLID )
+{
+    if( ShowCL )
+    {
+        StaticVarSet( "ShowCL", False, True );
+    }
+    else
+    {
+        StaticVarSet( "ShowCL", True, True );
+    }
+}
+
+// function for retrieiving checklist text
+function getCLText(id)
+{
+	switch(id)
+	{
+		// Weekly Chart Bullishness
+		case 0: 
+			str = "Uptrend before base is on rising volume, showing increased interest";
+			break;
+		case 1: 
+			str = "Uptrend before base respects the 10w SMA, showing tennis-ball action";
+			break;
+		case 2: 
+			str = "Uptrend before base shows institutional buying, i.e. blue skyscrapers";
+			break;
+		case 3: 
+			str = "Shows strength compared to QQQ line, e.g. correction resilient";
+			break;
+		case 4: 
+			str = "Stock chart does not look volatile";
+			break;
+		case 5: 
+			str = "Base count is 3 or less";
+			break;
+			
+		// Daily Chart Bullishness
+		case 6: 
+			str = "RS Line New Highs within the base";
+			break;
+		case 7: 
+			str = "Base is mostly above 50d SMA";
+			break;
+		case 8: 
+			str = "Bullish-looking shakeouts within the base";
+			break;
+		case 9: 
+			str = "Previous uptrend respects the 20-day SMA";
+			break;
+		case 10: 
+			str = "Stock chart does not look volatile";
+			break;
+			
+		// Daily Chart Volume and Overhead Supply
+			break;
+		case 11: 
+			str = "Stock is near 52w high";
+			break;
+		case 12: 
+			str = "Stock is near 104w high or ATH";
+			break;
+		case 13: 
+			str = "Volume recedes in downtrends during base but rises on uptrends";
+			break;
+		case 14: 
+			str = "Price is now above 'the line' of most traffic in the base";
+			break;
+		case 15: 
+			str = "Uptrend before base shows institutional buying, i.e. blue skyscrapers";
+			break;
+		
+		// MVP
+		case 16: 
+			str = "Stock is up 12 out of 15 days in preceding uptrend";
+			break;
+		case 17: 
+			str = "Volume increases 25% in this 15-day period";
+			break;
+		case 18: 
+			str = "Stock is up 20% in this 15-day period";
+			break;
+		default:
+			str = "invalid";
+			break;
+	}
+	
+	return str;
+}
+
+// function for retrieiving checklist text
+function getEnabler(id)
+{
+	switch(id)
+	{
+		// Weekly Chart Bullishness
+		case 0: 
+			str = "&1";
+			break;
+		case 1: 
+			str = "&2";
+			break;
+		case 2: 
+			str = "&3";
+			break;
+		case 3: 
+			str = "&4";
+			break;
+		case 4: 
+			str = "&5";
+			break;
+		case 5: 
+			str = "&6";
+			break;
+			
+		// Daily Chart Bullishness
+		case 6: 
+			str = "&q";
+			break;
+		case 7: 
+			str = "&w";
+			break;
+		case 8: 
+			str = "&e";
+			break;
+		case 9: 
+			str = "&r";
+			break;
+		case 10: 
+			str = "&t";
+			break;
+			
+		// Daily Chart Volume and Overhead Supply
+			break;
+		case 11: 
+			str = "&a";
+			break;
+		case 12: 
+			str = "&s";
+			break;
+		case 13: 
+			str = "&d";
+			break;
+		case 14: 
+			str = "&f";
+			break;
+		case 15: 
+			str = "&g";
+			break;
+		
+		// MVP
+		case 16: 
+			str = "";
+			break;
+		case 17: 
+			str = "";
+			break;
+		case 18: 
+			str = "";
+			break;
+		default:
+			str = "invalid";
+			break;
+	}
+	
+	return str;
+}
+
+// display checklist
+if( ShowCL )
+{
+	// clear CL button
+	CLID = 98;
+	GUIText = "Clear CL";
+
+	GuiButton( GUIText, CLID, xtitle+textlen-80, ycl-3, 65, 20, notifyClicked );
+	ycl += yincr;
+
+	ClearCL = GuiGetEvent( 0, 0 ) == CLID;
+
+	// draw background
+	GfxSelectSolidBrush(colorLightYellow);
+	GfxRoundRect(xtitle_i-5, ycl_i -4, xtitle+textlen, ycl_i + yincr * 24 +40, 20, 20 );
+	
+	// Title of checklist
+    GfxSetBkMode( 2 );
+    GfxSetBkColor( colorLightYellow );
+    GfxSelectFont( "Calibri", 12, 700 );
+    GfxTextOut( "DMT Checklist", xtitle, ycl );
+    ycl += yincr;
+
+    // retrieve and output score
+    CLScore = StaticVarGet(Tick + "CLScore");
+    if (IsNull(CLScore))
+		CLScore = 0;
+	
+	ScoreTot = 16;
+    GfxSetBkColor( colorLightYellow );
+    GfxSetTextColor( IIf(CLScore/ScoreTot > 0.75, colorGreen, IIf(CLScore/ScoreTot > 0.5, colorDarkYellow, colorRed ) ) );
+    GfxSetTextColor(ColorRGB( (1 - CLScore/ScoreTot)*255 , CLScore/ScoreTot*170, 20));
+    GfxTextOut( "Checklist Score = " + NumToStr( CLSCore/ScoreTot*100, 1.0 ) + "%", xcl, ycl+2 );
+    ycl += yincr + 5;
+    
+	// checklist using checkbox controls
+    CL = 0;	// initialize checklist array
+
+	// populate checklist with checkboxes and subtitles
+    subtitles = 0;	//init
+    GfxSetTextColor( colorBlack );
+    GfxSetBkColor( colorLightYellow );
+	
+	// retrieve CL array 
+	CLArray = StaticVarGet(Tick + "CLArray");
+	if (LastValue(IsNull(CLArray)) OR ClearCL)
+		CLArray = 0;
+	
+		
+	// loop throught checklist populate it
+	CLScore = 0;
+    for( i = 0; i < 19; i++ )
+    {
+        // special code for outputting subtitles, should probably convert this to a loop/switch
+        //Subtitle of checklist
+        if( i == 0 )
+        {
+            GfxSelectFont( "Calibri", 11, 700 );
+            GfxTextOut( "Weekly Chart Bullishness", xtitle, ycl );
+            subtitles++;
+        }
+        else
+            if( i == 6 )
+            {
+                //Subtitle of checklist
+                GfxSelectFont( "Calibri", 11, 700 );
+                GfxTextOut( "Daily Chart Bullishness", xtitle, ycl + ( i + subtitles )*yincr );
+                subtitles++;
+            }
+            else
+                if( i == 11 )
+                {
+                    //Subtitle of checklist
+                    GfxSelectFont( "Calibri", 11, 700 );
+                    GfxTextOut( "Daily Chart Volume and Overhead Supply", xtitle, ycl + ( i + subtitles )*yincr );
+                    subtitles++;
+                }
+                else
+                    if( i == 16 )
+                    {
+                        //Subtitle of checklist
+                        GfxSelectFont( "Calibri", 11, 700 );
+                        GfxTextOut( "Auto MVP Calc (not part of Score)", xtitle, ycl + ( i + subtitles )*yincr );
+                        subtitles++;
+                    }
+
+        //Calculate checkbox gui id
+        CLid = 100 + i;
+
+        // define checkbox and enable
+        cbtext = getCLText( i );
+        yloc = ycl + ( i + subtitles )*yincr;
+        GuiButton( getEnabler(i), CLid, xcl-1, yloc, 16, 15, notifyClicked );
+        GfxSelectFont("Calibri", 10, 500);
+        GfxTextOut(cbtext, xcl + 20, yloc);
+        GuiEnable( CLid, True );
+        
+        // checklist status for printing (when generating DTP)
+        GfxSelectFont("Calibri", 10, 700);
+        GfxSetTextColor(IIf(CLArray[i], colorGreen, colorRed));
+        GfxTextOut(WriteIf(CLArray[i], "[Y]", "[N]"), xcl-1, yloc);
+        GfxSelectFont("Calibri", 10, 500);
+        GfxSetTextColor( colorBlack);
+        
+        // check stored value and update checklist
+        if ( GuiGetEvent(0, 0) == CLid)
+			CLArray[i] = NOT CLArray[i];
+			
+		GuiSetColors( CLid, CLid, colorDefault, colorWhite, IIf(CLArray[i], colorLime, colorLightOrange ) );
+		GuiSetText("M", CLid);
+		
+		// update CLScore don't count MVP
+		if (i < 16)
+			CLScore += CLArray[i];
+    }
+    
+    
+    // automations
+    ValidBase = VldCSBase OR VldPPBase OR VldCapBase OR ValidConsolidation;
+    
+    volSMA		= MA(V, 50);
+    
+    i = 0;
+    if (True)
+	{	
+		startcheck 	= BarCount - LHSBars-22;
+		endcheck	= BarCount - LHSBars;
+
+		volDelta	= Ref(volSMA, -endcheck) - Ref(volSMA, -startcheck);
+	}
+    
+    i = 1;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 3;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 4;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 5;	
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 6;	
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 7;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 8;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+
+	i = 9;
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+    i = 10;	
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 11;	
+    if (True)
+	{	
+		//CLArray[i] = False;
+	}
+	
+	i = 16;
+	
+	if (LastValue(Sum(C>Ref(C,-1), 15)) >= 12)
+	{
+		CLArray[i] = True;
+	}
+	GuiSetText("A", 100 + i);
+	
+	i = 17;
+	if (LastValue(volSMA/Ref(volSMA, -15)) > 1.25)
+	{
+		CLArray[i] = True;
+	}
+	GuiSetText("A", 100 + i);
+	
+	i = 18;
+	if (LastValue(H/Ref(L, -15)) > 1.20)
+	{
+		CLArray[i] = True;
+	}
+	GuiSetText("A", 100 + i);
+	
+    // save CL and score
+    StaticVarSet(Tick + "CLArray", CLArray, True);
+	StaticVarSet(Tick + "CLScore", CLScore, True);
+}
+
+SetOption("GuiEnableKeyboard", True );

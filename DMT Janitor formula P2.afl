@@ -1,0 +1,56 @@
+// Clean up the BroadList/ Interesting Stocks Watchlist for the weekend routine
+// Michael Angelo MUSTILLO, 2023-07-01
+// Amibroker 6.40.4
+
+// To be used in Exploration mode
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+#include_once "Formulas\Norgate Data\Norgate Data Functions.afl"
+
+function import2watchlist( file, wlnum )
+{
+    //file - full path to exported results form main exploration
+    //wlnum -  number of watchlist you need to populate
+    //rank_column - rank column location form your main exploration
+
+    fh = fopen( file, "r" );
+
+    // skip header
+    line = fgets( fh );
+
+
+    if( fh )
+    {
+        while( ! feof( fh ) )
+        {
+            line = fgets( fh ); // read a line of text
+            symbol = StrExtract( line , 0 );
+
+            CategoryAddSymbol( symbol , categoryWatchlist, wlnum );
+        }
+
+        fclose( fh );
+    }
+    else
+    {
+        Error( "ERROR: file can not be open" );
+    }
+    
+   
+}
+
+// stuff only done once at the beginning
+if( Status( "stocknum" ) == 0 )
+{
+		
+	folder = "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\";
+
+// DMT Bases
+    file 	= "Broadlist.csv";
+    wlnum 	= CategoryFind( "Interesting Stocks", categoryWatchlist );
+
+    import2watchlist( folder + file, wlnum );
+
+
+}

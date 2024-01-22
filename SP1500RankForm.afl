@@ -1,0 +1,147 @@
+
+if ( Status("stocknum") == 0 )
+{
+// Default value for average days in three months of trading
+    QtrPrd = 16;
+
+    // Collect symbols from all markets
+    listnum = CategoryFind( "SP1500 Subindexes", categoryWatchlist );
+    list1500 = CategoryGetSymbols( categoryWatchlist, listnum );  // S&P1500 rank
+
+    // Create the full list of stocks to be ranked as a concatenated string CSV of both markets
+    List    = list1500;
+    ListQty = StrCount( List, "," ) + 1;
+
+    // Clear the static vars from last run
+    //StaticVarRemove( "*" );
+
+    // Generate the raw RS score for every stock and store in a static var
+    for( n = 0; ( Symbol = StrExtract( List, n ) ) != "";  n++ )
+    {
+        // Set price arrays to current symbol in the loop
+        SetForeign( Symbol );
+
+        // Calculate Raw RS
+        if( BarCount > QtrPrd * 4 )
+        {
+            x1 = ROC( C, QtrPrd * 1 );
+            x2 = ROC( C, QtrPrd * 2 );
+            x3 = ROC( C, QtrPrd * 3 );
+            x4 = ROC( C, QtrPrd * 4 );
+
+            // Aggregate raw score
+            RSRaw = 2 * x1 + x2 + x3 + x4;
+
+            // set to static var
+            StaticVarSet( "SP1500_" + Symbol, RSRaw );
+        }
+        else
+            if( BarCount > QtrPrd * 3 )
+            {
+                x1 = ROC( C, QtrPrd * 1 );
+                x2 = ROC( C, QtrPrd * 2 );
+                x3 = ROC( C, QtrPrd * 3 );
+                x4 = ROC( C, BarCount - 1 );
+
+                // Aggregate raw score
+                RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                // set to static var
+                StaticVarSet( "SP1500_" + Symbol, RSRaw );
+            }
+            else
+                if( BarCount > QtrPrd * 2 )
+                {
+                    x1 = ROC( C, QtrPrd * 1 );
+                    x2 = ROC( C, QtrPrd * 2 );
+                    x3 = ROC( C, BarCount - 1 );
+                    x4 = ROC( C, BarCount - 1 );
+
+                    // Aggregate raw score
+                    RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                    // set to static var
+                    StaticVarSet( "SP1500_" + Symbol, RSRaw );
+                }
+                else
+                    if( BarCount > QtrPrd )
+                    {
+                        x1 = ROC( C, QtrPrd * 1 );
+                        x2 = ROC( C, BarCount - 1 );
+                        x3 = ROC( C, BarCount - 1 );
+                        x4 = ROC( C, BarCount - 1 );
+
+                        // Aggregate raw score
+                        RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                        // set to static var
+                        StaticVarSet( "SP1500_" + Symbol, RSRaw );
+                    }
+                    else
+                        if( BarCount > 3 )		// Amibroker complains it needs 3 bars for charts
+                        {
+                            x1 = ROC( C, BarCount - 1 );
+                            x2 = ROC( C, BarCount - 1 );
+                            x3 = ROC( C, BarCount - 1 );
+                            x4 = ROC( C, BarCount - 1 );
+
+                            // Aggregate raw score
+                            RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                            // set to static var
+                            StaticVarSet( "SP1500_" + Symbol, RSRaw );
+                        }
+                        else
+                        {
+                            // Don't consider in percentile ranking
+                            ListQty--;
+						}
+
+        // Reset price arrays
+        RestorePriceArrays();
+    }
+
+    StaticVarGenerateRanks( "Rank", "SP1500_", 0, 1234 );
+    // Generate ranking of results
+
+    // Convert the static var ranks generated into a percentile score.
+    for( n = 0; ( Symbol = StrExtract( List, n ) )  != "";  n++ )
+    {
+        // get the current symbol's RSRaw_ value
+        Rank  = StaticVarGet( "Rank" + "SP1500_" +  Symbol );
+
+        // create percentile value IBD-style
+        RSpctile = 100 - 100 * Rank / ListQty;
+        
+        // alternate percentile rank formula
+        RSpctile = floor((ListQty - Rank)/ListQty*100);
+
+        // store the IBD style ranking in new static variable named "RS_<Ticker>"
+        StaticVarSet( "RS_" + Symbol, RSpctile, True );
+        
+        // store for retrieval via GICS ID # as well
+        SetForeign( Symbol );
+        GIDD = "GicsID_" + GicsID(0);
+        RestorePriceArrays();
+        
+        StaticVarSet( GIDD, RSpctile, True );
+    }
+
+    // remove unnecessary static data
+    // free up old stuff
+    StaticVarRemove( "SP1500_*" );
+    StaticVarRemove( "Rank" + "SP1500_*" );
+}
+
+Filter = True;
+
+Symbol = Name();
+
+RS = StaticVarGet("RS_" + Symbol);
+
+GICS_ROC = ROC( C , 1 );
+
+AddTextColumn(GicsID(1), "Industry");
+AddColumn(RS, "3Mth RS", 1.0, colorBlack, IIf(RS > 85, colorLime, colorLightOrange));
+AddColumn(GICS_ROC, "Daily return (%)", 1.2, colorBlack, IIf(GICS_ROC > 0, colorLime, colorLightOrange));
+SetSortColumns(-4);

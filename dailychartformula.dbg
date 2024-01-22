@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<AmiBroker-DebugContext CompactMode="1" FormatVersion="1">
+<Watches>
+<Watch Name="PTM"/>
+<Watch Name="thecolor"/>
+<Watch Name="pxw"/>
+<Watch Name="pxh"/>
+</Watches>
+<Breakpoints>
+<Breakpoint Line="1614"/>
+</Breakpoints>
+<Bookmarks/>
+</AmiBroker-DebugContext>

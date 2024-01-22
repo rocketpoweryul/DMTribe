@@ -1,0 +1,33 @@
+/// volume monsters
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+
+// find stocks whose average volume has doubled in the past 10 days
+
+// check ig stage 2 uptrend
+TF = TrendFilter( L, H, O, C, V );
+
+// check liquidity
+rngdolvol = LastValue( BarsSince( IsNull( C ) ) ) - 1;
+if( rngdolvol < 0 )
+    rngdolvol = 50;
+dolvol 		= C * MA( V, Min( 50, rngdolvol ) );
+Liq = dolvol > 1e6;
+
+// flag if double the vol
+VMA50 = MA(V, 50);
+VolMonst = VMA50 > Ref(VMA50, -10)*1.5;
+
+// exclude list
+wlname = "DMT EXCLUDE LIST";
+wlnum  = CategoryFind( wlname, categoryWatchlist );
+ExcludeStock = InWatchList( wlnum );
+
+// final filtering
+Filter = TF AND Liq AND NOT ExcludeStock AND VolMonst;
+
+
+// exploration columns
+AddColumn(VolMonst, "VolMonst", 1.0);

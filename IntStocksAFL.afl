@@ -1,0 +1,72 @@
+//Interesting Stocks
+// Mod-sum
+/*
+  2022-01-16: MAM Initial Creation
+*/
+
+// include the functional library
+//#include <TPT_Func_Lib.afl>
+
+// pull Int Stocks watchlist
+IntStock = CategoryFind("Interesting Stocks", categoryWatchlist);
+
+{
+    Version( 6.28 ); // Tested version
+    exportPath = "D:\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\DTP Images\\Interesting Stocks\\";
+    //fmkdir( exportPath ); // Create the path if it does not exists
+
+    pxHeight = Status( "pxheight" );
+    pxWidth = Status( "pxwidth" );
+
+    AB = CreateObject( "Broker.Application" );
+	// commented out since sometimes seems to get no "active" Doc/Window
+	// and will generate empty images (I'm not able to reproduce the issue systematically)
+	// AD = AB.ActiveDocument;
+	// AW = AD.ActiveWindow;
+
+    ABDocs = AB.Documents;
+
+// _TRACE("AB Documents Count = " + ABDocs.Count);
+    if( ABDocs.Count > 0 )
+    {
+        // AD = AB.ActiveDocument;
+        AD = ABDocs.Item( 0 ); // Use the first chart only - set your default layout accordingly
+        ADWindows = AD.Windows;
+
+        // _TRACE("AD Windows Count = " + ADWindows.Count);
+        if( ADWindows.Count > 0 )
+        {
+            AW = ADWindows.Item( 0 );
+            AW.Activate;
+            // would be nice to be able to detect "blank charts"
+
+            //Wlist = CategoryFind( "XYZ", categoryWatchlist );
+            symlist = CategoryGetSymbols( categoryWatchlist, IntStock );
+
+            for( i = 0; ( sym = StrExtract( symlist, i ) ) != ""; i++ )
+            {
+
+                AD.Name = sym;
+                
+                datestr = Now(1);
+                datestr = StrReplace(datestr, "/", "-");
+
+                AW.SelectedTab = 0;
+                filename = sym + "_DTP_" + datestr + ".PNG";
+                AW.ExportImage( exportPath + filename );
+
+                //AW.SelectedTab = 1;
+                //filename = sym + "_ReturnChart.PNG";
+                //AW.ExportImage( exportPath + filename );
+
+                //AW.SelectedTab = 2;
+                //filename = sym + "_RiskChart.PNG";
+                //AW.ExportImage( exportPath + filename );
+            }
+        } // no Windows. Should never happen!
+        else
+            _TRACE( "Active Document (Item 0) has no window." );
+    } // No open documents (charts) in current instance of AmiBroker
+    else
+        _TRACE( "No open documents..." );
+}

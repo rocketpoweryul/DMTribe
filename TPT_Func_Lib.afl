@@ -1,0 +1,1793 @@
+/* TPT Functions Library
+This AFL contains the library of functions for the TPT Pivot Microstructure Software
+This AFL should be included in any AFL using the functionality below
+*/
+
+/*  List of Functions
+SwingLow
+SwingHigh
+SwingIndex
+LowestLow
+HighestHigh
+Height
+Overlap
+getCSBaseParam
+getCSCapBaseParam
+getPPBaseParam
+isPausePivot
+getContractionIndex
+getMSPivotParam
+genRS
+TrendFilter
+getTurnLA
+getPPPivotParam
+checkVolume
+*/
+
+/* History
+Date Created:  2020-12-21
+Date Modified: 2021-03-20
+
+Mod-Sums:
+----------
+
+2021-03-20 MAM:
+- Issue 71: PausePivot detection fixed for cap style conditions
+
+2021-03-13 MAM:
+- Issue 57: Changed contraction indexing to remove nuisance contraction high when lows are equal
+- Issue 54: Removed capability for pause pivots to be not in the last bar. Lowest low cannot return same bar SH/SL if not the last bar
+
+2021-03-06 MAM:
+- Issue 61: Fixed issue with contraction indexing not taking into account the High of Base as a contraction high
+- Issue 62: Fixed issue with contraction indexing missing an intermediate yet valid contraction
+
+2021-02-12 MAM: 
+- Issue 39: Created checkVolume function 
+
+2021-02-11 MAM:
+- TrendFilter is updated to use closing price and not 50 day average for dollar volume
+
+2021-02-08 MAM:
+- TrendFilter Updated dolvol values to 10 mil for non-IPO and 25 mil for IPO stocks
+- getMSPivotParam now doesn't consider previous contraction size. Only overlap is considered
+
+2021-02-06 MAM:
+- Updated getMSPivotParam to allow any size of previous contraction
+- getPPPivotParam updated to v1.1 of power squeeze rules
+  - Added that pivot in getPPPivotParam needs to be in upper 61.8% of flag 
+  - Added volume as an input provision and pivot high for actual use
+- Updated getPPBaseParam for detection of flag and pole to detect power play and allows overshoot
+- updated getTurnLA to remove situation where initial parameters are not defined
+- removed min price from trendfilter since it is base dependent
+- set global min (8 mil) to dollarvolume as a check in trendfilter since there can be valid exceptions. Will flag in chart instead if invalid
+- Issue #49: fixed bug in getContractionIndex and getMSPivotParam for single contraction instances
+- Added function isPausePivot
+- Issue #47: fixed contraction index loop going past available contractions
+- Issue #50: Eliminated pivot detection when already broken out for classic and power squeeze
+	- Muted any swing high lower than the last bar's high
+- fixed same day low of pivot in getMSPivotParam
+
+2021-01-31 MAM:
+- Overlap function now inputs a swing index, updated as well getMSPivotParam as a user function
+- Updated TurnLA to mute positive slope lines
+- Fixed Lowest Low to protect against 0-inputs into LLV function
+- removed ATR requirement from trendfilter
+
+2021-01-30 MAM:
+- Issue #32 fixed: Height function needs to take in a swingindex as input could be from various indexing functions
+  - No longer uses swinghigh function
+- Fixed lowestlow function indexing issue per issue #29
+
+2021-01-29 MAM:
+- Fixed pause pivot per issue #25
+
+2021-01-16 MAM:
+- LowestLow and HighestHigh now take a swingindex as an input. These allows custom swingindexes to be input
+	- this impacted all user functions per the SW architecture to calculate their own generic or custom swing index, accordingly
+- Completely rewrote the getMSPivotParam to be more reliable and efficient using Russian doll search
+- LowestLow and all user functions must use open and close data since lowest low needs to evaluate same day contractions
+- getMSPivotParam: updated max previous contraction to 16%
+
+2021-01-10 MAM:
+- Updated getMSPivotParam to comment out 2-bar pivot for now since it is incorrect
+- Updated quality of detection of single bar contraction to take into account close vs open price
+- added getPPPivotParam to calculate alternate pivots for power squeezes
+Trendfilter:
+	- loosened dolvol and ATR limits to catch marginal stock (will show red in the chart if strictly off, though)
+	- fixed ATR calculation so that it is ATR % 
+
+2021-01-08 MAM:
+- Updated getPPBaseParam to account for overshoot in the flag high relative to the pole high
+- Updated trendfilter so that ROC function used lowest price in the last 12 months, not just the exact price one year ago
+- Updated trendfilter to be robust to IPOs and per IPO scanning criteria on discord server
+- updated getCSBaseParam to allow 20 day bases for IPOs
+- added nth = null handling for LowestLow and HighestHigh
+- rewrote TurnLA so that it's no longer erroneous
+- updated genRS to improve percentile ranking code (0-99 instead of 0-100)
+
+2021-01-07 MAM:
+- Integrated Turn Line function into library
+- Created exception when last bar needs to be the lowest low of the pivot contraction
+  - impacts lowest low, swingindex and getMSPivotParam functions
+- Updated getMSPivotParam to deal with exceptions
+- Updated that close needs to be within fib number vs 4% of the pivot contraction high
+
+2021-01-06 MAM:
+- Updated getCSBaseParam baselen calculation
+- Improved speed of calculation of getCSCapBaseParam
+- Added TrendFilter function
+- Sped up getMSPivotParam by skipping prev con calculations if pvt con is already invalid
+
+2021-01-05 MAM:
+- Added 4% below pivot high rule that was missing
+- Rewrote getCSBaseParam using the new four step process from the following link:
+	https://discord.com/channels/776518652592652339/791719187823067227/791719686180962346
+- Fixed getCSCapBaseParam bugs
+- Updated getPPBaseParam to output info data, similar to other bases
+
+2021-01-03 MAM:
+- Created genRS function
+
+2021-01-02 MAM:
+- Removed use of getCSBaseParam from getMSPivotParam, no longer needed1
+- Update of getCSBaseParam to correct for omitting checking whether the price is above the base already
+- Created getCSCapBaseParam function for detecting cap pattern
+- fixed getCSBaseParam for possible out of bounds array read
+- fixed detection of base LHS in getCSBaseParam
+- removed further dependency of getMSPivotParam on getCSBaseParam
+- fixed error in condition of squiggle filter
+- added derived Power play detection function getPPBaseParam
+
+2021-01-01 MAM:
+- Removed redundant code from getMSPivotParam (no functional effect)
+- Fixed error where Lnth2 search gets behind Hnth2, now it gives up and continues the outer while loop
+- Derived requirement for quitting after full overlap by previous contraction over pivot now is only
+   enforced when the overlap rule is met or the previous contraction is not too large already
+- Fixed inequality to be less than or equal to, to prevent skipping the loop entirely
+- increased tolerance to 2 pct to include more marginal situations, added tolerance to overlap rules too
+- added tolerance to slip through previous contractions that are slightly smaller
+- updated SwingHigh to allow the high of the last bar to be equal to the middle bar
+- Fixed squiggle filter so it quits once overshoot is ok
+- removed volatility check from getCSBaseParam as this can be done anywhere easily
+
+2020-12-30 MAM:
+- Fixed possible negative indexing in getCSBaseParam and getMSPivotParam
+- Complete rewrite of previous contraction search while loop
+
+2020-12-29 MAM:
+- getMsPivotParam UpdateL
+  - Added additional selectable output for MS pivot param for prices of contractions
+  - Added additional selectable output for MS pivot param for prices in their actual location in array
+  - Fixed endless loop error in valid pivot search (TryCount counter)
+  - Fixed if condition in while loop to increment Lnth2
+  - VldPvtCon is now scalar
+  - Added a tunable tolerance to find marginal situations
+- Updated Height function to take in separate indices for high and low
+- Fixed bug in Lowest Low wher it wasn't catching lows that occur at swinghighs
+
+2020-12-28 MAM:
+- Continue work on isMSPivotValid
+- renamed isMSPivotValid to getMSPivotParam as it will return various params
+- Updated getCSBaseParam to output scalars for loop compatibility
+
+2020-12-24 MAM:
+Added:
+ - getCSBaseParam completed
+ - isMSPivotValid started
+ - updated overlap to take in four integers for more flexibility
+ - Fixed LowestLow again due to similar bug, yesterday's fix didn't work
+
+2020-12-23 MAM:
+Modified:
+ - Renamed function PriceHeight to Height and output to HeightPct to be consistent
+ - Overlap function completed
+ - Fixed bug in LowestLow function where wrong low would be selected
+
+2020-12-22 MAM:
+Modified:
+ - SwingLow completed
+ - SwingHigh completed
+ - Height -> PriceHeight change in name not to conflict with output name
+ - Overlap
+
+Added
+ - LowestLow completed
+ - HighestHigh completed
+ - SwingIndex completed
+
+2020-12-21 MAM: Following functions added:
+ - SwingLow completed
+ - SwingHigh completed
+ - Height
+ - Overlap
+*/
+
+//------------ Function Code ------------//
+
+/* SwingLow Function
+
+	Purpose:
+	Used to detect low swings in price. Helps with contraction detection
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input: 	Low price array of current ticker
+	Output: Binary array which flags bottom of each Swing High with TRUE, otherwise False
+*/
+function SwingLow( LL )
+{
+    // Tunable Parameters
+    HightoLowThresh = 0;	// Positive-only percent value. Force a gap between first low to second low.
+    // Zero assumes anything lower than works
+    LowtoHighThresh = 0;	// Positive-only percent value. Force a gap between second low to third low.
+    // Zero assumes anything greater than works
+
+    // Low bar ref points
+    FirstBar 	= Ref( LL, -2 );
+    SecondBar	= Ref( LL, -1 );
+    ThirdBar	= LL;
+
+    // Threshold gain calculations. Converts percentage thresholds to gain value
+    FTSGain = 1 + HightoLowThresh;	// First To Second bar gain
+    STTGain = 1 + LowtoHighThresh;  // Second To Third bar gain
+
+    // Calculates detection of swing low as referenced in the last bar
+    SwingLowTrue = FirstBar > SecondBar * FTSGain AND ThirdBar > SecondBar * STTGain;
+
+    // Since swings lows are usually pointed out at the trough, shift detection to match this visualization
+    // Even if ref uses positive index, it's still causal as the intent is to only shift the detection to
+    // the right place
+    SwingLowInd = Ref( SwingLowTrue, 1 );
+
+    // Ensure last bar is false since it cannot possibly be a swing
+    SwingLowInd[BarCount - 1] = False;
+
+    // Return Statement
+    return SwingLowInd;
+}
+
+/* SwingHigh Function
+
+	Purpose: Used to detect high swings in price. Helps with contraction detection
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input: High price array of current ticker
+	Output: Binary array which flags bottom of each Swing High with TRUE, otherwise False
+*/
+function SwingHigh( HH )
+{
+    // Tunable Parameters
+    LowtoHighThresh = 0;	// Positive-only percent value. Force a gap between first high to second high.
+    // Zero assumes anything greater than works
+    HightoLowThresh = 0;	// Positive-only percent value. Force a gap between second high to third high.
+    // Zero assumes anything lower than works
+
+    // Low bar ref points
+    FirstBar 	= Ref( HH, -2 );
+    SecondBar	= Ref( HH, -1 );
+    ThirdBar	= HH;
+
+    // Threshold gain calculations. Converts percentage thresholds to gain value
+    FTSGain = 1 + LowtoHighThresh;	// First To Second bar gain
+    STTGain = 1 + HightoLowThresh;  // Second To Third bar gain
+
+    // Calculates detection of swing low as referenced in the last bar
+    SwingHighTrue = FirstBar * FTSGain < SecondBar AND ThirdBar * STTGain <= SecondBar;
+
+    // Since swings lows are usually pointed out at the trough, shift detection to match this visualization
+    // Even if ref uses positive index, it's still causal as the intent is to only shift the detection to
+    // the right place
+    SwingHighInd = Ref( SwingHighTrue, 1 );
+
+    // Ensure last bar is false since it cannot possibly be a swing
+    SwingHighInd[BarCount - 1] = False;
+
+    // Return Statement
+    return SwingHighInd;
+
+}
+
+/* SwingIndex Function
+
+	Purpose:
+	Return the bars since the nth swing (high or low)
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input: 	SwingIndex, binary array which can be swinghighind or swinglowind or other similar index
+			Integer for which contraction to check. 1 is most recent, 2 is 2nd most recent...
+	Output: Scalar Bars since N occurrence of a swing (high or low)
+*/
+function SwingIndex( SwingInd, nth )
+{
+    // Reference back nth swings, counting the bars while doing so
+
+    // Set the reference high reference to initial swinghigh index and low price array
+    IndRef = SwingInd;
+    count  = LastValue( BarsSince( IndRef ) );
+
+    // Loop to set arrays to nth swing, skip if nth = 0 or 1
+    for( i = 1; i < nth; i++ )
+    {
+        // retrieve the number of bars since the last swing
+        refbar	= LastValue( BarsSince( IndRef ) );
+        // shift the Swing reference accordingly
+        IndRef	= Ref( IndRef,  -refBar - 1 );
+        // add the number of bars to the preceding swing
+        count  += LastValue( BarsSince( IndRef ) ) + 1;
+    }
+
+	// special handling for low being last bar low
+	if (nth == 0)
+		BarsSinceSwing = 0;
+	else
+		BarsSinceSwing = count;
+
+    // return the accumulation of bars pointing to where the nth swing is
+    return BarsSinceSwing;
+}
+
+/* LowestLow Function
+
+	Purpose: DetectLowest Low between SwingHighs
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	Low price arracy, high price array, open price array, close price array
+			Swing Index binary array
+			Integer to return the lowest low of the nth swing high, 1 being the most recent
+	Output: Scalar Lowest Price
+*/
+function LowestLow( LL, HH, OO, CC, SwingIndex, nth )
+{
+    // Move reference so that we capture the nth lowest low of the nth swing high
+    // if nth = 1, skip the for loop since i is never less than nth
+
+    // Set the reference high reference to initial swinghigh index and low price array
+    SHRef	= SwingIndex;  // now an input
+    LowRef 	= LL;
+
+    // Loop to set arrays to nth swing high to lowest low, skip if 0 or 1
+    
+    for (i = 1; i < nth; i++)
+    {
+        // retrieve the number of bars since the last swinghigh
+        refbar	= LastValue( BarsSince( SHRef ) );
+        // shift the Swinghigh reference accordingly
+        SHRef	= Ref( SHRef,  -refBar );
+        // shift the low price reference accordingly
+        LowRef	= Ref( LowRef, -refBar );
+        
+        // shift remaining price arrays
+        HH	= Ref( HH, -refBar );
+        OO	= Ref( OO, -refBar );
+        CC	= Ref( CC, -refBar );
+
+        // Mute the nth+1 SwingHigh or the loop will get stuck
+        // the reason to mute instead of reference another bar back is that this last bar could be the low
+        SHRef[BarCount - 1] = False;
+    }
+
+    
+    // special handling if pivot low is the last bar
+    if (nth == 0)
+    {
+		LLPrice = LastValue(LL);
+    }
+    else
+    {
+		// Bars since last swing high on the reference bars
+		SHBars  = LastValue( BarsSince( SHRef ) );
+		// Lowest price since SHBars
+		LLPrice = LastValue( LLV( LowRef, SHBars + 1) );
+
+		// Handling for same day swing high and low
+		// Barssince the lowest price
+		LLBars  = LastValue( BarsSince( LowRef == LLPrice ) );
+		
+		// if same day swing high or swing low and not the last bar
+		if (SHBars == LLBars AND LLBars > 0)
+		{
+			// reduce period to one bar ahead
+			SHBars--;
+			// set actual new low price
+			LLPrice = LastValue( LLV( LowRef, Max(1, SHBars) ) );
+		}
+    }
+    
+    if (IsNull(nth)) 
+		LowestLowPrice = Null;
+	else
+		LowestLowPrice = LLPrice;
+
+    return LowestLowPrice;
+}
+
+/* HighestHigh Function
+
+	Purpose: Return the high price of the nth swinghigh
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	high price array
+			Swing Index binary array
+			Integer to return the lowest low of the nth swing high, 1 being the most recent
+	Output: Scalar highest price
+*/
+function HighestHigh( HH, SwingIndex, nth )
+{
+    // Move reference so that we capture the nth highest high of the nth swing high
+    // if nth = 1, skip the for loop since i is never less than nth
+
+    // Set the reference high reference to initial swinghigh index and low price array
+    SHRef	= SwingIndex; // now an input
+    HighRef	= HH;
+
+    // Loop to set arrays to nth swing high to lowest low
+    for( i = 1; i < nth; i++ )
+    {
+        // retrieve the number of bars since the last swinghigh
+        refbar	= LastValue( BarsSince( SHRef ) );
+        // shift the Swinghigh reference accordingly
+        SHRef	= Ref( SHRef,   -refBar - 1 );
+        // shift the low price reference accordingly
+        HighRef	= Ref( HighRef, -refBar - 1 );
+    }
+
+    // Mute the nth+1 SwingHigh
+    SHRef[BarCount - 1] = False;
+
+    // Determine the period since the last swinghigh
+    HighestHighPeriod = IIf(nth == 0, 0, LastValue( BarsSince( SHRef ) ));
+
+    // Get the lowest price within the last swing high
+    HighestHighPrice  = HighRef[BarCount - HighestHighPeriod - 1];
+    
+    if (IsNull(nth)) 
+		HighestHighPrice = Null;
+
+    return HighestHighPrice;
+}
+
+/* Height Function
+
+	Purpose:
+	Used to measure height from a high to low, which can be a candidate contraction.
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input: 	High Price, Low Price arrays, open price array, close price array
+			SwingIndex, is usually the output of SwingHigh SwingLow ConIndex
+			Hnth, Lnth Integers for which contraction to check. 1 is most recent, 2 is 2nd most recent...
+	Output: Percent array giving percent change between low and previous high
+*/
+function Height( LL, HH, OO, CC, SH, Lnth, Hnth )
+{
+    // Calculate peak and trough from high to low
+    LowPrice  = LowestLow( LL, HH, OO, CC, SH, Lnth );
+    HighPrice = HighestHigh(   HH, SH, Hnth );
+
+
+    // Determine height in percent
+    HeightPct = -( LowPrice / HighPrice - 1 ) * 100;
+
+    return HeightPct;
+}
+
+/* Overlap Function
+
+	Purpose:
+	Determine the amount of overlap the current contraction has vs the previous
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	High Price, Low Price arrays, open price array, close price array
+			Low and High binary indices. True if high or low is to be considered
+			integers Lnth1, Lnth2, Hnth1, Hnth2, which indicates which contractions to compare,
+			where 1 is the most recent, 2 is the 2nd most recent, etc.
+	Output: Overlap as a percentage of coverage of nth1 contraction compared to nth2
+*/
+function Overlap( LL, HH, OO, CC, SH, Lnth1, Hnth1, Lnth2, Hnth2 )
+{	
+    // Get the high price of the nth1 contraction
+    HighPrice1st = HighestHigh( HH, SH, Hnth1 );
+
+    // Get the low price of the nth1 contraction
+    LowPrice1st  = LowestLow( LL, HH, OO, CC, SH, Lnth1 );
+
+    // Get the high price of the nth2 contraction
+    HighPrice2nd = HighestHigh( HH, SH, Hnth2 );
+
+    // Get the low price of the 2nd nth2 contraction
+    LowPrice2nd	 = LowestLow( LL, HH, OO, CC, SH, Lnth2 );
+
+    // encode the condition for over four situations:
+    // Cond 1 - nth1 low  <  nth2 low	= 1
+    // Cond 2 - nth1 low  >= nth2 low	= 2
+    // Cond 3 - nth1 high <  nth2 high	= 4
+    // Cond 4 - nth1 high >= nth2 high	= 8
+    // Cond 5 - nth1 low  >  nth2 high  = 16
+    // Cond 6 - nth1 high <  nth2 low   = 16
+
+    // Calculate the encoding
+    CondEncode = IIf( LowPrice1st < LowPrice2nd, 1, 2 ) + IIf( HighPrice1st < HighPrice2nd, 4, 8 );
+    // Override previous statement if no overlap at all
+    CondEncode = IIf( LowPrice1st > HighPrice2nd OR HighPrice1st < LowPrice2nd, 16, CondEncode );
+
+    // Calculate the overlap in percent given the encoding
+    switch( CondEncode )
+    {
+            // nth1 is within nth2 completely
+            // Encoding: Cond2 and Cond3 = 2 + 4 = 6
+        case 6:
+            OverlapPct = ( HighPrice1st - LowPrice1st ) / ( HighPrice2nd - LowPrice2nd ) * 100;
+            break;
+
+            // nth1 has lower low and lower high than nth2
+            // Encoding: Cond1 and Cond3 = 1 + 4 = 5
+            // Therefore the overlap is considered starting from the nth2 contraction low
+        case 5:
+            OverlapPct = ( HighPrice1st - LowPrice2nd ) / ( HighPrice2nd - LowPrice2nd ) * 100;
+            break;
+
+            // nth1 has a higher low and higher high than nth2
+            // Encoding: Cond2 and Cond4 = 2 + 8 = 10
+            // Therefore the overlap ends at the hight price of the nth2 contraction
+        case 10:
+            OverlapPct = ( HighPrice2nd - LowPrice1st ) / ( HighPrice2nd - LowPrice2nd ) * 100;
+            break;
+
+            // nth1 has a lower low and a higher than nth2
+            // Encoding: Cond1 and Cond4 = 1 + 8 = 9
+            // Therefore nth1 completely enveloped nth2 and overlap is always 100%
+        case 9:
+            OverlapPct = 100;
+            break;
+
+            // nth1 is completely above or below nth2
+            // Encoding: Cond5 or Cond6 = 16 or 32
+            // Always 0%
+        case 16:
+            OverlapPct = 0;
+            break;
+
+            // error case
+        default:
+            OverLapPct = -1;
+            break;
+    }
+
+    return OverlapPct;
+}
+
+/* getCSBaseParam Function
+
+	Purpose:
+	Determine if the classic base is valid
+	- Greater than 30 days within 6 months, less than 35% deep
+	- ATR(30)/Price < 6.5% as a volatility check
+
+	Can also return other parameters of the base based on the "Info" input selection
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+	CSBase Four Step Process.png
+
+	Input:	High Price, Low Price arrays, open price array, close price array
+			string where depending on the input, gives a different output. See output section
+
+	Output:
+			Info = "Validity" 	-> Scalar Boolean indicating true or false
+			Info = "LHSPrice" 	-> Gives high price of left side of CS base
+			Info = "LHSBars"  	-> Gives bars since the LHS high of the CS base occurred
+			Info = "LowPrice" 	-> Gives low price of CS base
+*/
+function getCSBaseParam( LL, HH, OO, CC, Info )
+{
+    // Assumption is average of 21 trading days per month or 126 days per 6 months.
+    // Round up to 130 days
+    // DERIVED REQT: Max base length is six months
+    SixMths = Min( 130, BarCount - 1 );
+
+    // Set min requirement parameters
+    BaseLenMin = 30;	// days
+    BaseLenMin = IIf(BarCount - 1 == SixMths, 20, 30);
+    
+    BaseDepthMax 	= 35;   // percent from base low to base high
+    
+    SH = SwingHigh(HH);  // generic swinghigh index
+
+	// Follow the four-step process for determining a classic squeeze base
+	
+	//// 1. Find the base highest high
+	// initialize loop params
+	BaseHH	= 0;
+	i 		= 1; // skip first swing since it obviously isn't the LHS of the base
+	BHSince = 0;
+	do
+	{
+		// increment to the next highest high
+		i++;
+		
+		// get highest high
+		BaseHHCand  = HighestHigh(HH, SH, i);
+		
+		// get 'barssince' value of the candidate base high;
+		BHSinceCand = SwingIndex(SH, i);
+		
+		// set new base high if it beats the old one
+		if (BaseHHCand > BaseHH)
+		{
+			// Set to new high candidate
+			BaseHH 	= BaseHHCand;
+			
+			// Set barssince value of new base high
+			BHSince = BHSinceCand;
+			
+			// set Hnth to new highest high index 
+			Hnth	= i;
+		}
+		
+	}	// loop while under the six mth limit
+	while (BHSinceCand <= SixMths);
+	
+	//// 2. Find the lowest low after the highest high
+	// initialize loop params
+	BaseLL	= 1e6;	// artificially high number
+	i 		= 0;
+	BLSince = 0;
+	do
+	{
+		// increment to the next lowest low;
+		i++;
+		
+		// get the lowest low
+		BaseLLCand 	= LowestLow(LL, HH, OO, CC, SH, i);
+		
+		// get 'barssince' value of the candidate base low;
+		BLSinceCand = SwingIndex(SH, i);
+		
+		// set new base low if it beats the old one
+		if (BaseLLCand < BaseLL AND BLSinceCand < BHSince)
+		{
+			// Set to new high candidate
+			BaseLL 	= BaseLLCand;
+			
+			// Set barssince value of new base high
+			BLSince = BLSinceCand;
+			
+			// set Hnth to new highest high index 
+			Lnth	= i;
+		}
+		
+	} // loop while ahead of the base high
+	while (BLSinceCand < BHSince);
+	
+	//// 3. Draw a horizontal box to the left and right with a depth between the points in 1 & 2
+	// get binary array where the price high is greater than the base low and lower than the base high
+	inRect = HH >= BaseLL AND HH <= BaseHH AND BarIndex() > BarCount - SixMths;
+		
+	//// 4. Count how many days are within the box = BASE width
+	// Get the number of bars between beginning and end of base
+	BaseLen 	= LastValue(BarsSince(inRect == 0));
+		
+	//// Determine base validity	
+	// check if it meets the length requirements
+	
+	/// Disregard same day Base high/lows
+	// overall length validity
+	BaseLenOK 	= BaseLen >= BaseLenMin;
+	
+	/// Check if the depth meets the requirements
+	BaseDepth   = (1 - BaseLL/BaseHH)*100;
+
+	// rule out this is not in fact just a deeper base
+	BaseAbsLow = LastValue(LLV(LL, BaseLen));
+	
+	// overall depth validity	
+	BaseDepthOK = BaseDepth < BaseDepthMax;
+	
+	// Check if broken out
+	BrokenOut 	= LastValue(HH) > BaseHH;
+	
+	// Overall Validity
+	ValidBase 	= BaseLenOK AND BaseDepthOK AND NOT BrokenOut;
+ 
+    // Return value based on Info input
+    switch( Info )
+    {
+        case "Validity":
+            output = ValidBase;
+            break;
+
+        case "LHSPrice":
+            output = BaseHH;
+            break;
+
+        case "LHSBars":
+            output = BaseLen;
+            break;
+
+        case "LowPrice":
+            output = BaseLL;
+            break;
+    }
+
+    return output;
+}
+
+/* getCSCapBaseParam Function
+
+	Purpose:
+	Determine if the Cap base is valid
+	- Similar to determine getCSBaseParam, but allows a cap situation
+
+	Can also return other parameters of the base based on the "Info" input selection
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	High Price, Low Price arrays, open, close arrays
+			string where depending on the input, gives a different output. See output section
+
+	Output:
+			Info = "Validity" -> Scalar Boolean indicating true or false
+			Info = "LHSPrice" -> Gives high price of left side of Cap base
+			Info = "LHSBars"  -> Gives bars since the LHS high of the Cap base occurred
+			Info = "LowPrice" -> Gives low price of Cap base
+*/
+function getCSCapBaseParam( LL, HH, OO, CC, Info )
+{
+    //// Tunable parameters
+    // Cap time and depth limits
+    CapHeightLimPct		= 15;
+    CapTimeLimMin		= 10;
+    CapTimeLimMax		= 20;
+    
+    // Max Baselen (see getCSBaseParam)
+    SixMths = 130;
+
+    //// Search for RHS of CS Base  
+    // rewinding of price arrays for calls to getCSBaseParam
+    LLRef = LL;
+    HHRef = HH;
+    CCRef = CC;
+    // init flag if base was found
+    CSBaseFound = False;
+    
+    // start search from cap high
+    i = LastValue(HHVBars(HH, CapTimeLimMax));
+
+    // start while loop
+    // NB if it exits right away, this is actually not a cap pattern but a normal CS Base
+    while( NOT CSBaseFound AND i <= CapTimeLimMax )
+    {
+        //rewind by a day
+        LLRef = Ref( LL, -i );
+        HHRef = Ref( HH, -i );
+        OORef = Ref( OO, -i );
+        CCRef = Ref( CC, -i );
+
+        // check if a CS base is found
+        CSBaseFound = getCSBaseParam( LLRef, HHRef, OORef, CCRef, "Validity" );
+
+        i++;
+    } // end while
+
+    // determine cap validity
+    // Check cap length is within limits
+    CapLengthOK	 = i >= CapTimeLimMin AND i <= CapTimeLimMax;
+    
+    // derive the cap high
+    CapHigh		 = HHV( H, i );
+    
+    // determine estimate for base high without calling getCSBaseParam, which will slow things down
+    CapLow		 = HHV(Ref(H, -i), SixMths);    
+    
+    // determine cap height validity
+    CapHeightOK  = ( CapHigh / CapLow - 1 ) * 100 < CapHeightLimPct;
+
+    // Determine overall cap validity
+    ValidBase = LastValue( CSBaseFound AND CapLengthOK AND CapHeightOK );
+
+	output = 0;
+    switch( Info )
+    {
+        case "Validity":
+            output = ValidBase;
+            break;
+
+        case "Values":
+			// get CS Base LHS Price
+			LHSPrice  	= getCSBaseParam( LLRef, HHRef, OORef, CCRef, "LHSPrice" );
+            output[0] 		= LHSPrice;
+       
+			// get CS base LHSBars
+		    LHSBars  	= getCSBaseParam( LLRef, HHRef, OORef, CCRef, "LHSBars" );
+			// add length of cap to base length for length of entire pattern
+			LHSBars     = LHSBars + i - 1;
+            output[1] = LHSBars;
+
+		    //get CS Base Low Price
+		    LowPrice 	= getCSBaseParam( LLRef, HHRef, OORef, CCRef, "LowPrice" );
+            output[2] = LowPrice;
+            
+            break;
+    }
+
+    return output;
+}
+
+/* getPPBaseParam Function
+
+	Purpose:
+	Determine if the power play base is valid
+
+	Can also return other parameters of the base based on the "Info" input selection
+
+	References:
+	DERIVED FOR NOW
+
+	Input:	High Price, Low Price arrays.
+			string where depending on the input, gives a different output. See output section
+
+	Output:
+			Info = "Validity" -> Scalar Boolean indicating true or false
+			Info = "PoleHigh" -> Gives the pole high price
+			Info = "PHBar"    -> Gives bars since pole high
+			Info = "FlagLow"  -> Gives low price of flag
+			Info = "PoleLow"  -> Gives low price of pole
+			Info = "PoleLen"  -> gives pole length in bars
+*/
+function getPPBaseParam( LL, HH, Info )
+{
+    // Tunable Parameters
+    BaseLenMax 			= LLVBars(LL, 130);
+
+    PoleLowLenMax		=  8 * 5;	// 8 weeks
+    PoleHeightPctMin	=    95;	// 100% or more pole height
+
+    FlagDepthPctMax		=  	  25;	// Flag depth is 25%
+    //FlagLenMax			=	  50;	
+    FlagLenMin			= 	   7;   // Flag length min is 7
+    
+    FlagOverShootMax	=      5;	// allow a flag overshoot of the pole of 5%
+
+	// find PHBar and PoleHigh, keeping overshoot in mind
+
+	//11 set params for loop
+	refBars 	= 0;
+	HHcheck 	= HH;
+	LLcheck 	= LL;
+	PHBarCount 	= 0;
+	loopmax		= 0;
+	do
+	{
+		// get candidate power play characteristics
+		PoleHigh		= HHV(HHcheck, BaseLenMax);
+		PHBar			= HHVBars( HHcheck, BaseLenMax ) +1;
+		PoleLow			= Ref( LLV(     LLcheck, PoleLowLenMax ), -PHBar );
+		PoleLen			= Ref( LLVBars( LLcheck, PoleLowLenMax ), -PHBar ) + 1;    
+		PoleHeightPct	= ( PoleHigh / PoleLow - 1 ) * 100;
+		
+		// if criteria not met, rewind by PHBars to see if there is another suitable high
+		PPValidCand = LastValue(PoleLen <= PoleLowLenMax AND PoleHeightPct >= PoleHeightPctMin AND PHBar + PHBarCount >= FlagLenMin);
+		if (NOT PPValidCand)
+		{
+			HHcheck = Ref(HHcheck, -LastValue(PHBar));
+			LLcheck = Ref(LLcheck, -LastValue(PHBar));
+			
+		}
+		
+		PHBarCount += PHBar;
+		loopmax++;
+	}
+	while (NOT PPValidCand AND loopmax < 5);
+	
+	// sum PHBar to get total length1
+	PHBar = PHBarCount;
+	
+	FlagLow 		= LLV( LL, PHBar );
+	FlagDepthPct 	= ( 1 - FlagLow / PoleHigh ) * 100;
+	
+	FlagOvershoot	= (HHV(HH, PHBar)/PoleHigh - 1) * 100;
+
+    // Detect HTF if Pole is > 100% and flag is at least 5 bars long and flag % change is < 25%
+    PPValid = PoleHeightPct >= PoleHeightPctMin AND FlagDepthPct <= FlagDepthPctMax AND PHBar >= FlagLenMin AND FlagOvershoot < FlagOverShootMax;
+
+    // return output based on Info request
+    switch( Info )
+    {
+        case "Validity":
+            output = LastValue(PPValid);
+            break;
+
+        case "PoleHigh":
+            output = LastValue(PoleHigh);
+            break;
+
+        case "PHBar":
+            output = LastValue(PHBar);
+            break;
+
+        case "FlagLow":
+            output = LastValue(FlagLow);
+            break;
+            
+        case "PoleLow":
+			output = LastValue(PoleLow);
+			break;
+			
+		case "PoleLen":
+			output = LastValue(PoleLen);
+			break;
+    }
+
+    return output;
+}
+
+function isPausePivot(LL, HH, OO, CC, SwingIndex)
+{
+    PivotHighPct		= 61.798;				// Pivot High Pct
+    
+	// pause pivot detection
+	PausePCond1 = LastValue(HH > Ref(HH, -1));	// last high > yesterday high
+	PausePCond2 = LastValue(CC < OO);			// red candle
+	// check location of pause pivot relative to potential previous contraction
+	// get low of potential pause pivot low
+	// get low of potential pause pivot previous contraction low
+	PP_PvtConLow  	= LastValue(  LL);
+	PP_PrevConLow 	= LowestLow(  LL, HH, OO, CC, SwingIndex, 1 );
+	PP_PrevConHigh	= HighestHigh(    HH, 		  SwingIndex, 1 );
+	
+	// Upper third rule
+	PausePCond3		= (PP_PvtConLow - PP_PrevConLow)/(PP_PrevConHigh - PP_PrevConLow)*100 > (100 - PivotHighPct) OR LastValue(Sum(SwingIndex, BarCount-1)) < 2;
+	
+	// check all conditions together
+	PPCond 			= PausePCond1 AND PausePCond2 AND PausePCond3;
+	
+	return PPCond;
+}
+
+/* getContractionIndex Function
+
+	Purpose:
+	Returns a swingindex that is filtered of nuisance swing highs so that it represents actual contractions
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	High Price Array, Low Price Array, Open Price Array, Close Price Array
+
+	Output: SwingIndex (boolean array) representing contraction locations
+*/
+function getContractionIndex( LL, HH, OO, CC )
+{
+
+    // Tunable parameters
+    SixMths 			= 130;	// Six month limit for previous contraction search (high value within)
+    PvtConOSMaxPct		= 0;
+
+    // rough base data
+    HighOfBase	= LastValue( HHV( HH, SixMths ) );
+    HOBBars		= LastValue( HHVBars( HH, SixMths ) )+1;
+    LowofBase 	= LastValue( LLV( LL, HOBBars ) );
+    LOBBars		= LastValue( LLVBars( LL, HOBBars ) );
+
+    // remove superfluous swinghighs
+    // First pass, remove the obvious ones, not taking lowest lows into account
+
+    // get preloop values
+    SH 			= SwingHigh( HH );
+    
+    PPCond		= isPausePivot(LL, HH, OO, CC, SH);
+
+    for( i = 0; i < BarCount - HOBBars - 1; i++ )
+        SH[i] = 0;
+        
+    LastHigh = LastValue(HH);
+    for( i = BarCount - HOBBars; i < BarCount - 1; i++ )
+    {
+		CurHigh = HH[i];
+        if (CurHigh < LastHigh)
+			SH[i] = 0;
+			
+	}
+
+    CurHigh 	= IIf(PPCond, LastValue(HH), HighestHigh( HH, SH, 1 ));
+    CurHighBS	= IIf(PPCond, 0, SwingIndex(	SH, 1 ));
+    // create the filtered output and index counter
+    SHfilt 	= SH;
+    nth = IIf(PPCond, 1, 2);
+
+    // loop
+    do
+    {
+        // get previous swinghigh
+        NewHigh 	= HighestHigh( HH, SH, nth );
+        NewHighBS	= SwingIndex( SH, nth );
+
+        // if the new one is lower than the current, kill it, otherwise it's the new current high
+        if( CurHigh > Newhigh * ( 1 + PvtConOSMaxPct / 100 ) ) // with overshoot allowance
+            SHfilt[BarCount - 1 - NewHighBS] = False;
+        else
+        {
+            CurHigh 	= NewHigh;
+            CurHighBS	= NewHighBS;
+        }
+
+        nth++;
+
+    }
+    while( NewHighBS < HOBBars );
+
+    //pass 2, remove swing highs taking into account lowest low locations
+    // get preloop values
+    // high data and low data
+    CurHigh 	= HighestHigh( HH, SHfilt, 1 );
+    CurHighBS	= SwingIndex( SHfilt, 1 );
+    CurLow  	= LowestLow( LL, HH, OO, CC, SHfilt, 1 );
+    // create index counter and 2nd pass SHfilt
+    nth = IIf(PPCond, 1, 2);
+    
+    SHfiltFinal = SHfilt;
+
+	// loop
+    if( LastValue(Sum(SHfiltFinal, HOBBars)) > 1  )  // skip if only one contraction exists
+    {
+        do
+        {
+            // get previous swinghigh and lowest low
+            NewHigh 	= HighestHigh( HH, SHfilt, nth );
+            NewHighBS	= SwingIndex( SHfilt, nth );
+            NewLow  	= LowestLow( LL, HH, OO, CC, SHfilt, nth );
+            NewLowBS    = LastValue(LLVBars(Ref(LL, -CurHighBS), NewHighBS) + CurHighBS);
+
+            // if the current low is lower, the algorithm is still climbing so the current high is not the contraction high
+            if( CurLow <= NewLow OR NewLowBS == NewHighBS)
+            {
+                SHfiltFinal[BarCount - 1 - CurHighBS] = False;
+                //CurLow		= LowestLow( LL, HH, OO, CC, SHfilt, nth - 1 ); // need to reset it to the new SHfilt
+            }
+            else
+            {
+                CurLow		= LowestLow( LL, HH, OO, CC, SHfilt, nth ); // need to reset it to the new SHfilt
+            }
+
+            // set up next loop
+            CurHigh 	= NewHigh;
+            CurHighBS	= NewHighBS;
+
+            nth++;
+        }
+        while( NewHighBS < HOBBars AND nth <= LastValue(Sum(SHfilt, BarCount)));
+    }
+
+    ConIndex = SHfiltFinal;
+
+    return ConIndex;
+}
+
+/* getMSPivotParam Function
+
+	Purpose:
+	Determine if the pivot microstructure is correct and the pivot is valid
+
+	References:
+	1._CLASSIC_SQUEEZE_PIVOTS_FORMING_ABOVE_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pivot.pdf
+
+	Input:	High Price Array, Low Price Array, Open Price Array, Close Price Array
+			Info string which can equal "Validity" or "Index" or "Price" or "PriceIndex", where:
+				Validity: 		returns scalar boolean with validity of the microstructure pivot
+				SwingHighIndex: Returns the SwingHigh Index array of the selected swing high and lowest low of the
+								pivot and previous contraction as [Lnth1 Hnth1 Lnth2 Hnth2 ...]
+				Price: 			Returns the prices of the selected swing high and lowest low of the
+								pivot and previous contraction as [PvtConLow PvtConHigh PrevConLow PrevConHigh...]
+				PriceIndex:		Returns a price array which is zero except for when "Price" occurs". That is,
+								if "Price" returns [9 12 10 11 ...], Price Index returns:
+								[... 9 ... 12 ... 10 ... 11], where the ellipsis are a padded zeros given their
+								distance between each other.
+								This allows the user to know the location of the prices and the prices for
+								functions such as plotting
+
+								Note: all price arrays are size BarCount initialized at zero
+
+	Output: Boolean array indicating true or false
+*/
+function getMSPivotParam( LL, HH, OO, CC, Info )
+{
+    //// Tunable Parameters
+    TolPct		 		= 1;					// Set a tolerance to detect marginal conditions
+    PvtConSizeMaxPct 	= 6.5 	 + TolPct * 2;	// Max Pivot Contraction Size
+    PvtConOSMaxPct		= 2;					// Max overshoot percent of pivot contraction vs previous
+    PrevConSizeMaxPct	= 16  	 + TolPct * 2;	// Max Previous Contraction Size
+    OverLapMinPct		= 23.6 	 - TolPct * 5;	// Overlap Min Pct
+    OverLapMaxPct		= 61.798 + TolPct * 5;	// Overlap Max Pct
+    PivotHighPct		= 61.798;				// Pivot High Pct
+    PPPrevConLmtPct		= 10		 + TolPct * 2;  // Pivot Contraction size limit if there is a pause pivot
+    
+    // Default Params
+    Lnth0 = Null;	// pause pivot, initially disabled
+    Hnth0 = Null;	// pause pivot, initially disabled
+    Lnth1 = 1;		// pivot contraction
+    Hnth1 = 1;		// pivot contraction
+    Lnth2 = 2;		// previous contraction
+    Hnth2 = 2;		// previous contraction
+    
+	// get contraction index
+	ConIndex = getContractionIndex( LL, HH, OO, CC );
+	
+	// check if previous contraction low is coincident with pivot contraction high
+	PvtConLow		= LowestLow( LL, HH, OO, CC, ConIndex, Lnth1);
+	PvtConLowBars	= LastValue(BarsSince(LL == PvtConLow));
+	PrevConLow		= LowestLow( LL, HH, OO, CC, ConIndex, Lnth2);
+	PrevConLowBars	= LastValue(BarsSince(Ref(LL, -PvtConLowBars) == PrevConLow)) + PvtConLowBars;
+	
+	// increment contraction indices if they are coincident
+	if(PvtConLowBars == PrevConLowBars)
+	{
+		Lnth1--;
+	}
+	
+	PPCond = isPausePivot(LL, HH, OO, CC, ConIndex);
+	if(PPCond)
+	{
+		// enable pause pivot
+		Lnth0 = 0;
+		Hnth0 = 0;
+	}
+		else if (LastValue(Sum(ConIndex, BarCount)) == 1)
+		{
+			Lnth1 = 1;
+			Hnth1 = 1;
+			Lnth2 = Null;
+			Hnth2 = Null;
+			
+			if (PPCond)
+			{
+				Lnth0 = 0;
+				Hnth0 = 0;
+			}
+			
+		}
+		
+    
+    //// Pivot Contraction Validity
+    
+    PvtConHigh = HighestHigh(   HH, 		ConIndex, Hnth1 );
+    PvtConLow  = LowestLow( LL, HH, OO, CC, ConIndex, Lnth1 );
+    // Measure candidate Pivot Contraction size and validity
+    PvtConSize		= ( 1 - PvtConLow / PvtConHigh ) * 100;
+    PvtConSizeOK	= PvtConSize < PvtConSizeMaxPct;
+
+    // Make sure current bar high is <= pivot high and the close is in the upper 61.978% of the previous upthrust
+    CurrBarOK = LastValue( H ) <= PvtConHigh AND LastValue(C) > (1-PivotHighPct/100)*PvtConHigh;
+
+    // Overall Pivot Contraction Validity
+    VldPvtCon = LastValue( PvtConSizeOK AND CurrBarOK );    
+    
+    // Previous Contraction Validity
+	PrevConHigh = IIf(IsNull(Hnth2), Null, HighestHigh(   HH, 		 ConIndex, Hnth2  ));
+	PrevConLow  = IIf(IsNull(Lnth2), Null, LowestLow( LL, HH, OO, CC, ConIndex, Lnth2 ));
+	
+    // check if pivot contraction high overshoots previous contraction by more than 2%
+	PvtConOSOK		= ( PvtConHigh / PrevConHigh - 1 ) * 100 < PvtConOSMaxPct;
+    
+    // DERIVED REQT: Exclude undercuts of pivot contraction vs previous contraction
+	PvtConLowOK 	= PvtConLow >= PrevConLow;
+	
+	//// Pause Pivot Contraction Validity
+    
+    if (PPCond)
+    {
+		PPConHigh = LastValue(HH);
+		PPConLow  = LastValue(LL);
+		// Measure candidate Pivot Contraction size and validity
+		PPConSize		= ( 1 - PPConLow / PPConHigh ) * 100;
+		PPConSizeOK		= PPConSize < PvtConSizeMaxPct;
+    } 
+    else
+		PPConSizeOK		= False;
+		
+		// check that pivot contraction is < 10%
+		PPPvtConSizeOK 	= PvtConSize < PPPrevConLmtPct;
+		
+	VldPPCon = PPConSizeOK; // AND PPPvtConSizeOK;
+	
+	//// Previous Contraction Validity
+	
+	// Measure candidate Pivot Contraction size
+	PrevConSize		= ( 1 - PrevConLow / PrevConHigh ) * 100;
+	// set to true since we only care about the relative size for previous contraction
+	PrevConSizeOK	= True; //PrevConSize < PrevConSizeMaxPct;
+
+	// Check if the previous contraction is bigger than the pivot contraction
+	ConSizeCmpOK = PvtConSize <= PrevConSize;
+	
+	if (NOT ConSizeCmpOK)
+	{
+		Lnth2 = Null;
+		Hnth2 = Null;
+	}
+	
+	// Check Overlap
+	if(PPCond)
+		OverlapPct		= Overlap( LL, HH, OO, CC, ConIndex, Lnth0, Hnth0, Lnth1, Hnth1);
+	else
+		OverlapPct		= Overlap( LL, HH, OO, CC, ConIndex, Lnth1, Hnth1, Lnth2, Hnth2);
+		
+	// Check if it's possible to disregard if both contractions are less than PvtConSizeMaxPct
+	DisregardRule 	= (PvtConSize < PvtConSizeMaxPct AND PrevConSize < PvtConSizeMaxPct) OR PPCond;
+	// Check overall overlap conditions
+	OverlapOK 		= ( OverlapPct > OverLapMinPct AND OverlapPct < OverLapMaxPct ) OR DisregardRule;
+	
+	// Check Pivot High Rule, i.e. location of the high of the pivot contraction vs prev contraction
+	PHPct	= ( PvtConHigh - PrevConLow ) / ( PrevConHigh - PrevConLow ) * 100;
+	// Check if within tolerance or if the Disregard rule also applies here
+	PHOK 	= PHPct > ( 100 - PivotHighPct ) OR DisregardRule;
+    
+    // Check that all conditions for valid pivot are attained
+    VldPrevCon = PvtConOSOK + PvtConLowOK + PrevConSizeOK + ConSizeCmpOK + OverlapOK + PHOK >= 6;
+    
+    // Consolidate all detections
+    VldMSPivot = ((VldPPCon AND VldPvtCon) OR (VldPvtCon AND VldPrevCon)) AND LastValue(HH) <= PvtConHigh;
+    
+    // Return value based on Info input
+    
+    output[0] = Null; // default if no pause pivot
+    output[1] = Null; // default if no pause pivot
+    
+    switch( Info )
+    {
+        case "Validity":
+            // output is there is a valid pivot
+            output = VldMSPivot;
+            break;
+
+        case "SwingHighIndex":
+            // output array of indices for the pivot
+            output[0] = Lnth0;
+            output[1] = Hnth0;
+            output[2] = Lnth1;
+            output[3] = Hnth1;
+            output[4] = Lnth2;
+            output[5] = Hnth2;
+            break;
+
+        case "Price":
+            // output array of contraction high/low prices
+            if(PPCond)
+			{	output[0] = PPConLow;
+				output[1] = PPConHigh;
+			}
+            output[2] = PvtConLow;
+            output[3] = PvtConHigh;
+            output[4] = PrevConLow;
+            output[5] = PrevConHigh;
+            break;
+
+        case "PriceIndex":
+            // output array of contraction high/low prices
+            // Pivot Contraction Bars
+            PvtConLBar 	= BarCount - 1 - LastValue( BarsSince( LL == PvtConLow ) );
+            PvtConHBar 	= BarCount - 1 - SwingIndex( SwingHigh( HH ),   Hnth1 );
+
+            // Previous contraction Bars
+            PrevConLBar = BarCount - 1 - LastValue( BarsSince( LL == PrevConLow ) );
+            PrevConHBar	= BarCount - 1 - SwingIndex( SwingHigh( HH ),   Hnth2 );
+
+            output[PvtConLBar ]	= PvtConLow;
+            output[PvtConHBar ]	= PvtConHigh;
+            output[PrevConLBar] = PrevConLow;
+            output[PrevConHBar] = PrevConHigh;
+            
+            if (PPCond)
+            {
+				output[BarCount-1] 	= PPConHigh;
+				output[0]			= PPConLow;
+            }
+            
+            break;
+    } // end switch
+    
+    return output;
+}
+
+/* genRS Function
+
+	Purpose: Generate the IBD style relative strength
+
+	References:
+	https://forum.amibroker.com/t/how-to-imitate-ibd-relative-strength-percentile-ranking-of-stocks/
+	Author: Michael Angelo MUSTILLO (rocketPower)
+
+	Input:	N/A, it will use Amibroker market lists for NYSE and NASDAQ
+	Output: Function has no output but will store static variables with the following naming structure:
+			RS_<Ticker>, e.g. RS_GOOG, with a data format of a percentile value from 0-99
+*/
+function genRS(ThreeMth, prefix)
+{
+    // Default value for average days in three months of trading
+    //ThreeMth = 63;
+
+    // Collect symbols from all markets
+    listNYSE = CategoryGetSymbols( categoryMarket, 1 );	// NYSE
+    listNSDQ = CategoryGetSymbols( categoryMarket, 2 );	// NASDAQ
+    listARCA = CategoryGetSymbols( categoryMarket, 3 );	// NYSE ARCA
+    listNYAM = CategoryGetSymbols( categoryMarket, 4 );	// NYSE American
+    listCBZX = CategoryGetSymbols( categoryMarket, 5 );	// CBOE BZX
+
+    // Create the full list of stocks to be ranked as a concatenated string CSV of both markets
+    List    = listNYSE + "," + listNSDQ + "," + listARCA + "," + listNYAM + "," + listCBZX;
+    ListQty = StrCount( List, "," ) + 1;
+
+    // Clear the static vars from last run
+    //StaticVarRemove( "*" );
+
+    // Generate the raw RS score for every stock and store in a static var
+    for( n = 0; ( Symbol = StrExtract( List, n ) ) != "";  n++ )
+    {
+        // Set price arrays to current symbol in the loop
+        SetForeign( Symbol );
+
+
+		// Calculate Raw RS and filter out cheap or illiquid stocks
+        if( LastValue(C) < 5 )
+        {
+            // Don't consider in percentile ranking
+            ListQty--;
+        }
+        else
+            if( BarCount > ThreeMth * 4 )
+            {
+                x1 = ROC( C, ThreeMth * 1 );
+                x2 = ROC( C, ThreeMth * 2 );
+                x3 = ROC( C, ThreeMth * 3 );
+                x4 = ROC( C, ThreeMth * 4 );
+
+                // Aggregate raw score
+                RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                // set to static var
+                StaticVarSet( "RSRaw_" + Symbol, RSRaw );
+            }
+            else
+                if( BarCount > ThreeMth * 3 )
+                {
+                    x1 = ROC( C, ThreeMth * 1 );
+                    x2 = ROC( C, ThreeMth * 2 );
+                    x3 = ROC( C, ThreeMth * 3 );
+                    x4 = ROC( C, BarCount - 1 );
+
+                    // Aggregate raw score
+                    RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                    // set to static var
+                    StaticVarSet( "RSRaw_" + Symbol, RSRaw );
+                }
+                else
+                    if( BarCount > ThreeMth * 2 )
+                    {
+                        x1 = ROC( C, ThreeMth * 1 );
+                        x2 = ROC( C, ThreeMth * 2 );
+                        x3 = ROC( C, BarCount - 1 );
+                        x4 = ROC( C, BarCount - 1 );
+
+                        // Aggregate raw score
+                        RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                        // set to static var
+                        StaticVarSet( "RSRaw_" + Symbol, RSRaw );
+                    }
+                    else
+                        if( BarCount > ThreeMth )
+                        {
+                            x1 = ROC( C, ThreeMth * 1 );
+                            x2 = ROC( C, BarCount - 1 );
+                            x3 = ROC( C, BarCount - 1 );
+                            x4 = ROC( C, BarCount - 1 );
+
+                            // Aggregate raw score
+                            RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                            // set to static var
+                            StaticVarSet( "RSRaw_" + Symbol, RSRaw );
+                        }
+                        else
+                            if( BarCount > 3 )		// Amibroker complains it needs 3 bars for charts
+                            {
+                                x1 = ROC( C, BarCount - 1 );
+                                x2 = ROC( C, BarCount - 1 );
+                                x3 = ROC( C, BarCount - 1 );
+                                x4 = ROC( C, BarCount - 1 );
+
+                                // Aggregate raw score
+                                RSRaw = 2 * x1 + x2 + x3 + x4;
+
+                                // set to static var
+                                StaticVarSet( "RSRaw_" + Symbol, RSRaw );
+                            }
+                            else
+                            {
+                                // Don't consider in percentile ranking
+                                ListQty--;
+                            }
+
+        // Reset price arrays
+        RestorePriceArrays();
+    }
+
+    StaticVarGenerateRanks( "Rank", "RSRaw_", 0, 1234 );
+    // Generate ranking of results
+
+    // Convert the static var ranks generated into a percentile score.
+    for( n = 0; ( Symbol = StrExtract( List, n ) )  != "";  n++ )
+    {
+        // get the current symbol's RSRaw_ value
+        Rank  = StaticVarGet( "Rank" + "RSraw_" +  Symbol );
+
+        // create percentile value IBD-style
+        RSpctile = 100 - 100 * Rank / ListQty;
+
+        // alternate percentile rank formula
+        RSpctile = floor( ( ListQty - Rank ) / ListQty * 100 );
+
+        // store the IBD style ranking in new static variable named "RS_<Ticker>"
+        StaticVarSet( prefix + Symbol, RSpctile, True );
+    }
+
+    // remove unnecessary static data
+    // free up old stuff
+    StaticVarRemove( "RSraw_*" );
+    StaticVarRemove( "Rank" + "RSraw_*" );
+
+    return ListQty;
+}
+
+/* TrendFilter Function
+
+	Purpose: Determine if stock meet Stage 2 Criteria
+
+	References:
+	Mark Minervini - How to Trade Like a Stock Market Wizard (Trend Template)
+	TPT Discord Server #scanning-criteria, #trend-template
+	https://media.discordapp.net/attachments/776626855791951883/778750306045526036/unknown.png?width=1187&height=471
+
+	Input:	Close price and Volume arrays, static var with Relative Strength generated with genRS function (needs to run before!)
+	Output: Scalar Boolean
+*/
+function TrendFilter( LL, HH, OO, CC, VV )
+{	
+	OneMth = 21;  // days
+	
+	// get non-null range (supports rewind)
+	Range = LastValue(BarsSince(IsNull(CC)))-1;
+	if(Range < 0)
+		Range = BarCount;
+	
+	if(Range > OneMth*12)
+	{
+		// Get moving averages
+		SMA200 		= MA(  CC, 200 );
+		SMA150 		= MA(  CC, 150 );
+		SMA050 		= MA(  CC,  50 );
+		High52pct 	= HHV( CC, 253 );
+		Low52pct	= LLV( CC, 253 );
+		SMAV50		= MA(  VV,  50 );
+		
+		// Average Dollar volume of past 50 day
+		DolVol		= CC*SMAV50;
+		
+		// determine price from low over last year to high within max baselen
+		ROCLow		= LLV( LL, 253 );
+		ROCHigh		= HHV( HH, 130 );
+		
+		ROC12M		= (ROCHigh/RocLow-1)*100; // get the lowest price in the past year to calc ROC
+		
+		// get RS value		
+		RS          = StaticVarGet("RS_" + Name());		// run genRS to update this!!!
+		
+		ATR30		= (ATR(30)/C)*100;
+		
+		// Trend filter logic taken from TPT Discord #scanning-criteria channel
+		x1 = True; //CC	     	> 15;
+		x2 = CC      	> High52pct*0.75;
+		x3 = RS     	> 84;
+		x4 = SMAV50 	> 5e4;
+		x5 = ROC12M		> 30;
+		x6 = True; //DolVol		> 1e7;
+		x7 = True; //ATR30      < 7;
+		
+		x8  = CC  	 > SMA150;
+		x9  = CC 	 > SMA200;
+		x10 = SMA150 > SMA200;
+		x11 = SMA200 > Ref(SMA200, -21);
+		x12 = SMA050 > SMA150;
+		x13 = SMA050 > SMA200;
+	}
+	else	// IPO
+	{		
+		// Get moving averages
+		SMA200 		= MA(  CC, 200 );
+		SMA150 		= MA(  CC, 150 );
+		SMA050 		= MA(  CC,  50 );
+		High52pct 	= HHV( CC, 253 );
+		Low52pct	= LLV( CC, 253 );
+		SMAV50		= MA(  VV,  50 );
+		
+		// Average Dollar volume of past 50 day
+		RawDolVol	= CC*MA(VV, Range);
+		DolVol		= IIf(IsEmpty(SMAV50), RawDolVol, CC*SMAV50);
+		
+		// determine price from low over last year to high within max baselen
+		ROCLow		= LLV( LL, 253 );
+		ROCHigh		= HHV( HH, 130 );
+		
+		ROC12M		= (ROCHigh/RocLow-1)*100; // get the lowest price in the past year to calc ROC
+		
+		
+		ATR30		= (ATR(Min(30, Range))/C)*100;
+		
+		// Trend filter logic taken from TPT Discord #scanning-criteria channel
+		x1 = True;  //CC	     	> 15;
+		x2 = CC > High52pct*0.75;
+		x3 = True;	// disable RS Check
+		x4 = IsEmpty(SMAV50) OR SMAV50 > 5e4;
+		x5 = True; //ROC12M		> 30;
+		x6 = DolVol > 1e6;
+		x7 = True;  //ATR30      < 7;
+		
+		// attempt these if moivng avg exists
+		x8  = IsEmpty(SMA150) OR CC  	 > SMA150;
+		x9  = IsEmpty(SMA200) OR CC 	 > SMA200;
+		x10 = IsEmpty(SMA200) OR SMA150  > SMA200;
+		x11 = IsEmpty(SMA200) OR BarCount < 221 OR SMA200 > Ref(SMA200, -21);
+		x12 = IsEmpty(SMA150) OR SMA050 > SMA150;
+		x13 = IsEmpty(SMA200) OR SMA050 > SMA200;
+	}
+	
+	TF = x1 AND x2 AND x3 AND x4 AND x5 AND x6 AND x7 AND x8 AND x9 AND x10 AND x11 AND x12 AND x13;
+	
+	return TF;
+}
+
+/* getTurnLA Function
+
+	Purpose: Determine the turn line array
+
+	References:
+	2._CLASSIC_EARLY_SQUEEZE_PIVOTS_FORMING_AT_THE_TURN_-_Di_Mauro_Perfect_Pivot_thePrivateTrader.com_Pi.pdf
+
+	Input:	Low and High price arrays
+	Output: Price array representing the turn line equation
+*/
+function getTurnLA( LL, HH, OO, CC )
+{
+
+    // get CS base data, should work with Power play data as well
+    if( getCSBaseParam( LL, HH, OO, CC, "Validity" ) )
+    {
+        LHSPrice  	= getCSBaseParam( LL, HH, OO, CC, "LHSPrice"	);
+        LHSBars  	= getCSBaseParam( LL, HH, OO, CC, "LHSBars"	);
+        LowPrice  	= getCSBaseParam( LL, HH, OO, CC, "LowPrice"	);
+    }
+    else
+        if( getPPBaseParam( L, H, "Validity" ) )
+        {
+            LHSPrice  	= getPPBaseParam( L, H, "PoleHigh"	);
+            LowPrice	= getPPBaseParam( L, H, "FlagLow"	);
+            LHSBars  	= getPPBaseParam( L, H, "PHBar"	);
+            //PoleLow  	= getPPBaseParam( L, H, "PoleLow"	);
+            //PoleLen  	= getPPBaseParam( L, H, "PoleLen"	);
+
+        }
+        else
+        {
+            LHSPrice  	= 0;
+            LowPrice	= 0;
+            LHSBars  	= 0;
+        }
+
+    //// calculate turn
+    nth = 1;
+
+    // get nth swinghigh value for baselow
+    SH = SwingHigh(HH);
+    while( HighestHigh( HH, SH, nth ) != LHSPrice)
+		nth++;
+
+    // get initial candidate top of turn coordinates
+    TurnTopP 	= LHSPrice;
+    TurnTopB 	= LastValue( BarsSince( HH == LHSPrice ) );
+
+    // get initial candidate bottom of turn coordinates
+    TurnBotP = HighestHigh( HH, SH, nth );
+    TurnBotB = LastValue( BarsSince( HH == TurnBotP ) );
+
+    // Calculate if TurnLA is valid
+    LowPriceBars  = LastValue( BarsSince( LL == LowPrice ) );
+    HighPriceBars = LastValue( BarsSince( HH == LHSPrice ) );
+
+    InLHS = BarIndex() >= BarCount - 1 - HighPriceBars AND BarIndex() <= Barcount - 1 - LowPriceBars;
+
+    // if there is no swing high in the lhs of base set to high of base low day
+    if( TurnBotP == LHSPrice )
+    {
+        TurnBotP = H[BarCount - 1 - LowPriceBars];
+        TurnBotB = LastValue( BarsSince( HH == TurnBotP ) );
+    }
+
+    // Calculate the candidate Turn Line with full extend left and right
+    TurnLA	= LineArray( BarCount - 1 - TurnTopB, TurnTopP, BarCount - 1 - TurnBotB, TurnBotP, 3 );
+
+    CrossTurn = HH > TurnLA;
+
+    // Check if there's a bad cross of H over TurnLA
+    BadCrossDetect = InLHS AND CrossTurn;
+
+    // Find location of largest excursion
+    Excursion 	= IIf( BadCrossDetect, HH - TurnLA, Null );
+    ExcBars		= LastValue( HHVBars( Excursion, LHSBars ) );
+
+    // detect if the line doesn't meet the requirements
+    BadLine		= LastValue( Cum( BadCrossDetect ) );
+
+    // Set the new coordinates depending on where the excursion is
+    if(	TurnTopB - ExcBars < ExcBars - TurnBotB AND BadLine )
+    {
+        // perform this fix if the error is closer to the top
+        TurnTopB = ExcBars;
+        TurnTopP = HH[BarCount - 1 - TurnTopB];
+    }
+    else
+        if( BadLine )
+        {
+            // perform this fix if the error is closer to the bottom
+            TurnBotB = ExcBars;
+            TurnBotP = HH[BarCount - 1 - TurnBotB];
+
+        }
+
+    // Calculate the candidate Turn Line with full extend left and right
+    TurnLA	= LineArray( BarCount - 1 - TurnTopB, TurnTopP, BarCount - 1 - TurnBotB, TurnBotP, 3 );
+
+    // format linearray for plotting
+    TurnLA  = IIf( BarIndex() > BarCount - 2 - LastValue( BarsSince( HH == LHSPrice ) ) AND BarIndex() < BarCount, TurnLA, Null );
+    TurnLA  = IIf( TurnTopP <= TurnBotP, Null, TurnLA );
+	
+	TurnLASlopeOK = TurnLA[BarCount-1]/TurnLA[BarCount - 1 - HighPriceBars] < 1;
+	
+	if (NOT TurnLASlopeOK)
+		TurnLA = Null;
+
+    // return output
+    return TurnLA;
+}
+
+/* getPPPivotParam Function
+
+	Purpose: Determine alternate pivot detection for power squeezes
+
+	References:
+	TPT Discord channel #perfect-pivot-microstructure
+	Power_Squeeze_Setup_Rules_v1.1.pdf
+
+	Input:	Low and High close and Vol price arrays, Power squeeze parameters, flag low price, pole high price, turn line price array, pivot high price
+	Output: 0 = no possible pivot, 1 = hourly pivot possible, 2 = daily chart pivot valid
+*/
+function getPPPivotParam( LL, HH, CC, VV, FlagLow, PoleHigh, TurnLA, PvtH, PivotHigh )
+{
+    // tunables
+    UpMoveMaxPct 		= 16;
+    PivotHeightMaxPct 	= 8;
+    PivotHighPct		= 61.798;
+    FlatBaseLimPct		= 16;
+
+    // Find if close is above turn line and where the turn occurred
+    CAT 	= LastValue( CC > TurnLA );
+    CATBar	= LastValue( BarsSince( Cross( CC, TurnLA ) ) );
+		
+	// bars since the low of flag
+    FlagLowBars = LastValue( BarsSince( LL == FlagLow ) );
+
+	UpMoveOK 	  = False;
+	FlatBaseValid = False; 
+	
+    if( CAT )
+    {
+        // get % move of the upmove after the turn
+        UpMoveHigh = LastValue( HHV( HH, CATBar + 1 ) );
+        UpMoveBar  = LastValue( HHVBars( HH, CATBar ) );
+
+        // location of upmove low (low of flag or swing low later?)
+        UpMoveLowCand = LastValue( LLV( LL, LLVBars( LL, FlagLowBars + 1 ) ) );
+
+        // find the upmove price low
+        if( UpMoveLowCand > FlagLow )
+            UpMoveLow = UpMoveLowCand;
+        else
+            UpMoveLow = FlagLow;
+            
+        // calculate the upmove percent change and validity
+		UpMovePct  = ( UpMoveHigh / UpMoveLow - 1 ) * 100;
+		UpMoveOK   = UpMovePct < UpMoveMaxPct;
+	}
+	else // flag is a flat base
+		{
+			FlagHeightPct = (1 - FlagLow/PoleHigh)*100;
+			FlatBaseValid = FlagHeightPct <= FlatBaseLimPct;
+		}
+		
+	// determine if pivot is in the right location within the base
+    // get pivot height relative to bottom of turn
+    PHPct	= ( PivotHigh - FlagLow ) / ( PoleHigh - FlagLow ) * 100;
+    // remove possibility that low of contraction is the possible hourly pivot
+    //LBC		= LastValue(CC);
+    //LBHPct  = ( LBC       - FlagLow ) / ( PoleHigh - FlagLow ) * 100;
+    PHOK 	= PHPct > ( 100 - PivotHighPct );// AND LBHPct > ( 100 - PivotHighPct );
+        
+    // format and set output
+    if (LastValue(HH) <= PivotHigh AND PvtH < PivotHeightMaxPct AND (CAT OR FlatBaseValid) AND PHOK AND (FlatBaseValid OR UpMoveOK))
+		output = 2;
+	else
+		if (LastValue(HH) <= PivotHigh AND (FlatBaseValid OR UpMoveOK) AND PHOK)
+			output = 1;
+		else
+			output = 0;
+			
+    return output;
+}
+
+function checkVolume(CC, VV, ConIndex, LHSBars)
+{
+	// average volume over 50 days
+	VolMA = MA(V, 50);
+	
+	// get the number of bars since the start of the last contraction
+	PvtConBars = LastValue(BarsSince(ConIndex == True));
+		
+	//// VOLUME DRYUP 
+	
+	// check if there are any bars in the pivot contraction whose volume is < 50% of the highest volume in the base)
+	// this will set to false any index before the pivot contraction, and then check the volume condition on the rest
+	VolBar50   = Cum(BarIndex() > BarCount - 1 - PvtConBars AND VV < 0.5*LastValue(HHV(VV, LHSBars)));
+	
+	// If the sum is greater than 0, the volume condition is confirmed (event occurred at least once in the pivot contraction)
+	VolBar50OK = VolBar50 > 0;
+	
+	// repeat the same process but check if a volume bar in the pivot contraction was 65% or less than the average volume
+	VolBar65   = Cum(BarIndex() > BarCount - 1 - PvtConBars AND VV < 0.65*LastValue(VolMa));
+	
+	// If the sum is greater than 0, the volume condition is confirmed (event occurred at least once in the pivot contraction)
+	VolBar65OK = VolBar65 > 0;
+	
+	//// EVIDENCE OF ACCUMULATION
+	Upday = CC > Ref(CC, -1);
+	
+	// check for 150% vol bars in base, in at least 3 vol bars
+	VolAcc5050   = Cum(BarIndex() > BarCount - 1 - LHSBars AND VV > 1.5*VolMa AND Upday);
+	VolAcc5050OK = VolAcc5050 > 2;
+	
+	// check for 25mil dollarvolume day in base
+	VolDol25M    	= Cum(BarIndex() > BarCount - 1 - LHSBars AND CC*VV > 2.5e7 AND Upday);
+	VolDolVol25MOK	= VolDol25M > 0;
+	
+	// overall volume health
+	VolOK    = False;
+	VolOK[0] = LastValue( VolBar50OK   AND VolBar65OK     );
+	VolOK[1] = LastValue( VolAcc5050OK AND VolDolVol25MOK );
+		
+	return VolOK;	
+}
+
+
+//EOF

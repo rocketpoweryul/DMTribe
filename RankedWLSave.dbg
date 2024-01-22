@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<AmiBroker-DebugContext CompactMode="1" FormatVersion="1">
+<Watches>
+<Watch Name="folder"/>
+<Watch Name="wlnum"/>
+<Watch Name="list"/>
+<Watch Name="fh"/>
+<Watch Name="line"/>
+<Watch Name="symbol"/>
+</Watches>
+<Breakpoints/>
+<Bookmarks/>
+</AmiBroker-DebugContext>

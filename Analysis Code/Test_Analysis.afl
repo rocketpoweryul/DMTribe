@@ -1,0 +1,137 @@
+// THIS IS NOT FORMAL CODE
+
+// This file is an analysis formula for Amibroker
+// The purpose is to test detection of chart characteristics driven by the function library
+
+// include the functional library
+#pragma nocache
+#include_once "C:\Users\admin\OneDrive\Michael\Documents\GitHub\TPT\TPT_Func_Lib.afl"
+
+// Run once code
+if ( Status("stocknum") == 0 )
+{
+	// get RS
+	StaticVarRemove( "RS_" );
+	genRS(63, "RS_");
+	
+	StaticVarRemove( "RS3_" );
+	genRS(16, "RS3_");
+}
+
+/*
+// Exploration code
+if(BarCount>5)
+{
+	// set flag default value
+	PvtVld 			= False;
+	VldCSBase 		= False;
+	VldCSCapBase 	= False;
+	VldPPBase 		= False;
+	
+	PPPivot			= False;
+	IPOVld 			= False;
+	
+	// log ticker name
+	tick = Name();
+	RS   = StaticVarGet("RS_" + Name());
+	
+	// check for uptrend
+	TF = TrendFilter(L, H, O, C, V);
+	
+	// check base and pivot if trending
+	if(LastValue(TF))
+	{	
+		VldCSBase  		= getCSBaseParam(   L, H, O, C, "Validity"	);
+		
+		VldCSCapBase 	= getCSCapBaseParam(L, H, O, C, "Validity"	);
+		
+		VldPPBase		= getPPBaseParam(   L, H,    "Validity"	) ;
+		
+		// calculate specific Power squeeze requirements per v1.1 f power squeeze rules
+		// Note some margin is added in for 25mil dolvol, 95 RS and 8$ minimums
+		VldPPBaseMeta   = LastValue(StaticVarGet("RS_" + Name())) >= 94 AND C > 7.9;
+		
+		if(LastValue(VldCSBase OR VldCSCapBase OR VldPPBase))
+		{
+			// check pivot validity
+			PvtVld 		= getMSPivotParam(  L, H, O, C, "Validity" );
+			
+			// check for possible hourly set up on PP bases
+			if (LastValue(VldPPBase AND VldPPBaseMeta AND NOT PvtVld))
+			{	
+				// get turn line
+				TurnLA = getTurnLA(L, H, O, C);
+				
+				// get contraction index
+				ConIndex = getContractionIndex( L, H, O, C );
+				
+				// get flaglow and pole high and pivot high
+				FlagLow  = getPPBaseParam(L, H, "FlagLow");
+				PoleHigh = getPPBaseParam(L, H, "PoleHigh");
+				PvtIndex = getMSPivotParam( L, H, O, C, "SwingHighIndex" );
+				
+				PvtH  = Height(L, H, O, C, ConIndex, PvtIndex[0], PvtIndex[1]);
+				
+				PvtPrice	= getMSPivotParam( L, H, O, C, "Price" 			);
+				PPPivot = getPPPivotParam( L, H, C, V, FlagLow, PoleHigh, TurnLA, PvtH,  PvtPrice[1]);
+			}
+			
+		}
+
+	}
+	// IPO case
+	if(BarCount < 200 AND BarCount > 5)
+	{
+		// Set IPO flag
+		IPOVld = True;
+		
+		// check pivot is valid
+		PvtVld 		= getMSPivotParam(  L, H, O, C, "Validity" ) AND (C*MA(V,50)> 1e7);
+		
+	}
+	
+	// final filter
+	Filter = (PvtVld OR PPPivot > 0) AND (C > MA(C,50) OR IPOVld) AND (RS >= 89 OR IPOVld);
+	
+	if (VldCSBase)
+		pattern = "CLASSIC";
+	else if (VldCSCapBase)
+		pattern = "CAP BASE";
+	else if (VldPPBase)
+		pattern = "POWER";
+	else if (IPOVld)
+		pattern = "IPO";
+	else
+		pattern = "N/A";
+		
+	// add columns
+	
+	AddTextColumn(pattern, "Pattern");
+	AddTextColumn(IndustryID(1), "Ind Name");
+	AddTextColumn(GicsID(2), "GICS Name");
+	AddColumn(RS, "RS", 1.0);
+	SetSortColumns(5, -6);
+	
+}
+else 
+	Filter = 0;
+
+// watchlist management
+{
+    ListNum = CategoryFind( "DMT Pivots", categoryWatchlist );
+
+    if( Status( "stocknum" ) == 0 )
+    {
+        oldlist = CategoryGetSymbols( categoryWatchlist, listnum );
+
+        for( i = 0; ( sym = StrExtract( oldlist, i ) ) != ""; i++ )
+        {
+            CategoryRemoveSymbol( sym, categoryWatchlist, listnum );
+        }
+    }
+
+    if( LastValue( Cum( Filter AND Status( "barinrange" ) ) ) AND NOT InWatchListName("DMT EXCLUDE LIST"))
+        CategoryAddSymbol( "", categoryWatchlist, listnum );
+}
+	
+*/

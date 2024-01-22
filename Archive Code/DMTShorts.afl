@@ -1,0 +1,45 @@
+////// DMTShorts
+
+//// Variables
+
+// Time Periods
+YrInDays	= 253;
+QtrDays		=  64;
+
+// SMAs
+SMA200 	= MA(C, 200);
+SMA050 	= MA(C,  50);
+SMAVol 	= MA(V,  50);
+
+
+//// Filters
+
+
+// Stock has gone up at least 100% once it reached its peak
+
+// Top data
+
+// How many Bars ago was the top?
+PeakBar 	= HHVBars(H, YrInDays);
+// What's the pprice at the top?
+PeakPrice 	= HHV(    H, YrInDays);
+// What's the price at the bottom of the prior runup
+StartPrice	= LLV(L, YrInDays*2 + PeakBar);
+// Did the stock make more than a 100% gain in that period?
+RunUp = PeakPrice/StartPrice > 1.95; //(5% tolerance)
+
+// black cross
+BlackCross = Cross(SMA200, SMA050); // first SMA crosses above second SMA
+
+// Must be recent and after peak
+BarsSinceBC = BarsSince(BlackCross);
+BCRecent 	= BarsSinceBC < QtrDays;
+
+/// should have 50 day average volume > 1M
+Liquid = SMAVol > 900000; // 100k margin
+
+// stock rejected at the 50 at least twice
+
+
+// Final filtering
+Filter = RunUp AND BlackCross AND BCRecent AND Liquid;

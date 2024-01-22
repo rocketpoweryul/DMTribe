@@ -1,0 +1,222 @@
+// Generate Daily Trading Plan
+// Next Gen implies a version that does not rely on a SetForeign loop as this is bad code
+// Amibroker 6.40.4, developed and debugged in a i9-12900-based Windows 11 laptop
+
+// Mod-sum
+/*
+  2023-06-27: MAM Initial Creation
+*/
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+// Instead of pulling from the favourites, this formula will be executed in an Exploration Analysis, with the Favourties watchlist as a filter
+
+// Make sure the exploration is set to explore the last bar of the Favourites watchlist, ONLY!
+
+picsonly = False;
+
+// Generate imagery ///////////////////////////////////////////////////////////
+
+if( Status( "stocknum" ) == 0 )   // set to write if first ticker
+{
+    exportPath = "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\DTP Images\\";
+    //fmkdir( exportPath ); // Create the path if it does not exists
+
+    pxHeight = Status( "pxheight" );
+    pxWidth = Status( "pxwidth" );
+
+    AB = CreateObject( "Broker.Application" );
+    // commented out since sometimes seems to get no "active" Doc/Window
+    // and will generate empty images (I'm not able to reproduce the issue systematically)
+    // AD = AB.ActiveDocument;
+    // AW = AD.ActiveWindow;
+
+    ABDocs = AB.Documents;
+
+// _TRACE("AB Documents Count = " + ABDocs.Count);
+    if( ABDocs.Count > 0 )
+    {
+        // AD = AB.ActiveDocument;
+        AD = ABDocs.Item( 0 ); // Use the first chart only - set your default layout accordingly
+        ADWindows = AD.Windows;
+
+        // _TRACE("AD Windows Count = " + ADWindows.Count);
+        if( ADWindows.Count > 0 )
+        {
+            AW = ADWindows.Item( 0 );
+            AW.Activate;
+            // would be nice to be able to detect "blank charts"
+
+            //Wlist = CategoryFind( "XYZ", categoryWatchlist );
+            symlist = CategoryGetSymbols( categoryFavorite, 0 );
+
+            for( i = 0; ( sym = StrExtract( symlist, i ) ) != ""; i++ )
+            {
+
+                AD.Name = sym;
+
+                datestr = Now( 1 );
+                datestr = StrReplace( datestr, "/", "-" );
+
+                AW.SelectedTab = 0;
+                filename = sym + "_DTP_" + datestr + ".PNG";
+                AW.ExportImage( exportPath + filename );
+
+                //AW.SelectedTab = 1;
+                //filename = sym + "_ReturnChart.PNG";
+                //AW.ExportImage( exportPath + filename );
+
+                //AW.SelectedTab = 2;
+                //filename = sym + "_RiskChart.PNG";
+                //AW.ExportImage( exportPath + filename );
+            }
+        } // no Windows. Should never happen!
+        else
+            _TRACE( "Active Document (Item 0) has no window." );
+    } // No open documents (charts) in current instance of AmiBroker
+    else
+        _TRACE( "No open documents..." );
+}
+
+// Generate CSV outputs //////////////////////////////////////////
+
+if( NOT picsonly )
+{
+	// get ticker
+    ticker = Name();
+
+	// determine base
+    VldPPBase	 = getPPBaseParam(    L, H,	      "Validity" );
+    VldCSBase  	 = getCSBaseParam(    L, H, O, C, "Validity" );
+    VldCSCapBase = getCSCapBaseParam( L, H, O, C, "Validity" );
+
+	// Determine Pullback selection active
+	PBActive = StaticVarGet( Name() + "PBActive"	);
+	PBBar	 = StaticVarGet( Name() + "PBBar" 	 	);
+    
+    if ( IsNull(PBActive) )
+		PBActive = False;
+
+	// Assign base string name for DTP output
+    if( VldPPBase )
+        Base = "PS";
+    else
+        if( VldCSBase )
+            Base = "CS";
+        else
+            if( VldCSCapBase )
+                Base = "CAP";
+            else
+				Base = "N/A";
+
+	if ( PBActive )
+		if ( StrMatch(Base, "N/A") )
+			Base = "PB";
+		else
+			Base += " PB";
+
+	// determine pivot contraction
+    PvtPrice 	= 0;
+    
+    if ( PBActive )
+		PvtPrice = LastValue(Ref(H, -PBBar));
+	else
+		PvtPrice	= getMSPivotParam( L, H, O, C, "Price" );
+
+	// extract buypoint
+    if( IsNull( PvtPrice[1] ) )
+        Buypoint = PvtPrice[3] + 0.1;	// add ten cents to pivot contraction
+    else
+        Buypoint = PvtPrice[1] + 0.1;	// add ten cents to pause pivot
+
+	// determine limit and stops
+    LimitPrice 	= BuyPoint * 1.01;
+    Stop2		= BuyPoint * 0.98;
+    Stop4		= BuyPoint * 0.96;
+
+	// determine profit taking points (High risk and low risk)
+    PT_HR		= BuyPoint * 1.06;
+    PT_LR		= BuyPoint * 1.20;
+
+	// determine earnings dates
+    ih = InternetOpenURL( "https://cloud.iexapis.com/stable/stock/" + ticker + "/stats/nextEarningsDate" + "?token=" + "pk_9e61c412f48441eb94df8eef90654c06" );
+
+	// default assignment
+    ED = "NA";
+
+	// contact IEX for the earnings date
+    if( ih )
+    {
+        str = InternetReadString( ih );
+        ED  = StrMid( str, 1, 10 );
+
+        InternetClose( ih );
+    }
+
+	// discard garbage data, checking for string length detects the vast majority of errors for my purposes
+    if( StrLen( ED ) < 3 )
+        ED = "NA";
+
+	// prepare csv row
+    CR 	 = StaticVarGetText( ticker + "_IBD_CR" );
+    EPS  = StaticVarGetText( ticker + "_IBD_EPS" );
+    RS   = StaticVarGetText( ticker + "_IBD_RS" );
+    IGRS = StaticVarGetText( ticker + "_IBD_IGRS" );
+    SMR  = StaticVarGetText( ticker + "_IBD_SMR" );
+    AD   = StaticVarGetText( ticker + "_IBD_AD" );
+    SPON = StaticVarGetText( ticker + "_IBD_SPON" );
+
+	// create output string for the csv file
+    csvrow = ticker + "," + Base + "," + StrFormat( "%.2f, %.2f, %.2f, %.2f, %.2f, %.2f,", LimitPrice, BuyPoint, Stop2, Stop4, PT_HR, PT_LR ) + ED + "," + CR + "," + EPS + "," + RS + "," + IGRS + "," + SMR + "," + AD + "," + SPON + "\n";
+
+	// Now we need to check if this is the first stock in the Favourites list. If so we can overwrite the DTP.csv file. If not, we append!
+    Favourites = CategoryGetSymbols( categoryFavorite, 0 );
+    FavTicker = StrExtract( Favourites, 0 );
+
+	// open the DTP.csv file
+    if( Status( "stocknum" ) == 0 )   // set to write if first ticker
+        fh = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\DTP.csv", "w" );
+    else
+        // set to append if not the first ticker
+        fh = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\DTP.csv", "a" );
+
+	// write to the file if successfully opened, ie fh > 0
+    if( fh )
+        fputs( csvrow, fh );
+
+	// close file
+    fclose( fh );
+
+	// get the date for the DTP being generated
+    datetoday 	= LastValue( DateTime() );	// grab the last date where EOD data is available
+    DoW 		= LastValue( DayOfWeek() );	// get the day of the week array for the EOD data
+
+	// determine the DTP date
+    if( DoW < 5 )
+        // If the last data is latest Thursday (DoW < =4), you can simply give the day after
+        // Note Sunday will never occur
+        DTPDateDT = DateTimeAdd( datetoday, 1 );
+    else // If Friday data exists (DoW >= 5, will never be 6), then set to the Monday after
+        DTPDateDT = DateTimeAdd( datetoday, 3 );
+
+	// convert the DTP date to a string
+    DTPDateStr = DateTimeToStr( DTPDateDT );
+
+	// update the CSV output to pre-pend the date
+    csvrow = DTPDateStr + "," + csvrow;
+
+	// open the RGS_Source File and always append!
+    fi = fopen( "C:\\Users\\admin\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\RGS_Source.csv", "a" );
+
+	// write to the file if successfully opened, ie fi > 0
+    if( fi )
+        fputs( csvrow, fi );
+
+	// close file
+    fclose( fi );
+
+	// set filter to true to see if file acces was successful, which should imply success
+	// This way if the favourites list is larger than the exploration output, we know there was an issue
+    if( fh AND fi ) Filter = True;
+}

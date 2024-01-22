@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Window>
+	<Sheet>
+		<Name>Sheet 1</Name>
+		<Pane>
+			<ChartID>1002</ChartID>
+			<PercentHeight>50</PercentHeight>
+			<Formula>
+			</Formula>
+			<FilePath>Formulas\\Custom\\Price 1.afl</FilePath>
+			<Flags>256</Flags>
+			<MoreFlags>11</MoreFlags>
+			<Min>21.5043</Min>
+			<Max>26.9172</Max>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 2</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 3</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 4</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 5</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 6</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 7</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+	<Sheet>
+		<Name>Sheet 8</Name>
+		<Pane>
+			<ChartID>0</ChartID>
+			<PercentHeight>50</PercentHeight>
+		</Pane>
+	</Sheet>
+</Window>

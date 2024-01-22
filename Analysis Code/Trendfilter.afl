@@ -1,0 +1,14 @@
+// include the functional library
+#include <TPT_Func_Lib.afl>
+
+TF = TrendFilter( L, H, O, C, V );
+
+RS = StaticVarGet("RS_" + Name());
+
+Filter = TF AND RS >= 85;
+
+
+AddTextColumn(IndustryID(1), "Ind Name");
+AddTextColumn(GicsID(2), "GICS Name");
+AddColumn(RS, "RS", 1.0);
+SetSortColumns(4, -5);

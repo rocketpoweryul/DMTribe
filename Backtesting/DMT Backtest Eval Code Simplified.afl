@@ -1,0 +1,302 @@
+// RGS Code
+// Risk Guidance System Tracking System
+
+// mod-sum
+/*
+2021-06-03: MAM File Initiated
+*/
+
+// Amibroker 6.38
+
+// functions
+
+// count the violations
+function CountViolations(i, highestclose, highsincebuy, barssincebuy, priceatbuy)
+{
+	// initialize count
+	VioCount = 0;
+	
+	// get moving averages
+	SMA20 = MA(C, 20);
+	SMA50 = MA(C, 50);
+	
+	// check moving average violation and increment the count
+	if (C[i] < SMA20[i])
+		VioCount++;
+		
+	if (C[i] < SMA50[i])
+		VioCount++;
+	
+	// four lower lows
+	barssincehigh = BarsSince(H == highsincebuy);
+	LL4 = Sum(barssincebuy >= 0 AND L < Ref(L, -1), barssincehigh);
+	if (LL4[i] > 3)
+		VioCount++;
+	
+	// good close over bad close
+	GCBC = Sum(barssincebuy >= 0 AND C > (H+L)/2, barssincehigh) - Sum(barssincebuy >= 0 AND C < (H+L)/2, barssincehigh);
+	if (GCBC[i] < 0)
+		VioCount++;
+		
+	// Up down count
+	UD = Sum(barssincebuy >= 0 AND C > Ref(C,-1), barssincehigh) - Sum(barssincebuy >= 0 AND C < Ref(C,-1), barssincehigh);
+	if (UD[i] < 0)
+		VioCount++;
+		
+	// full retracement
+	FR = C < priceatbuy AND highsincebuy/priceatbuy > 1.05;
+	if(FR[i])
+		VioCount++;
+	
+	VolUp  	= IIf(barssincebuy >= 0 AND C > Ref(C,-1), V, 0);
+	VolDn	= IIf(barssincebuy >= 0 AND C < Ref(C,-1), V, 0);
+	FR2		= C < 1.01*priceatbuy AND highsincebuy/priceatbuy > 1.03;
+	LVBHVI	= FR2 AND Cum(VolUp) - Cum(VolDn) < 0;
+	if(LVBHVI[i])
+		VioCount++;
+	
+	return VioCount;
+	//return 0;
+}
+
+
+/////////// This section uses the custom backtest procedure to create RGS metrics
+
+SetCustomBacktestProc( "" );
+SetBacktestMode( backtestRegularRaw2Multi );
+
+/* Now custom-backtest procedure follows */
+
+
+if( Status( "action" ) == actionPortfolio )
+{
+    bo = GetBacktesterObject();
+
+    bo.Backtest(); // run default backtest procedure
+
+    fh = fopen( "D:\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\DMT_Eval_Output.csv", "w" );
+    
+
+    if( fh )
+    {
+        // iterate through closed trades first
+        for( trade = bo.GetFirstTrade(); trade; trade = bo.GetNextTrade() )
+        {
+            // create csv output line
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + NumToStr( trade.EntryPrice, 1.2 ) + "," + DateTimeToStr( trade.ExitDateTime ) + "," + NumToStr( trade.ExitPrice, 1.2 ) + "," + NumToStr( trade.GetPercentProfit, 1.2 ) + "," + NumToStr( trade.GetMAE, 1.2 ) + "," + NumToStr( trade.GetMFE, 1.2 ) + "\n";
+
+            fputs( csvout, fh );
+
+        }
+
+        // iterate through eventually still open positions
+        for( trade = bo.GetFirstOpenPos(); trade; trade = bo.GetNextOpenPos() )
+        {
+            // create csv output line
+            csvout = trade.Symbol + "," + DateTimeToStr( trade.EntryDateTime ) + "," + NumToStr( trade.EntryPrice, 1.2 ) + "," + DateTimeToStr( trade.ExitDateTime ) + "," + NumToStr( trade.ExitPrice, 1.2 ) + "," + NumToStr( trade.GetPercentProfit, 1.2 ) + "," + NumToStr( trade.GetMAE, 1.2 ) + "," + NumToStr( trade.GetMFE, 1.2 ) + "\n";
+
+            fputs( csvout, fh );
+        }
+    }
+
+    fclose( fh );
+}
+
+
+///////// BACKTEST PROCEDURE //
+
+// Load CSV file
+file = fopen( "D:\\OneDrive\\Michael\\Documents\\Investing\\DMT Discord Server\\CSV Data\\RGS_Source.csv", "r" );
+
+// get date
+dt = DateTime();
+
+// init var
+Buy = Sell = DateBuy = BuyPrice = stop2 = stop4 = 0;
+
+// lookup CSV and current date to see if the stock is in the daily trading plan for the day
+
+if( file )
+{
+    // discard header row
+    line = fgets( file );
+
+    index = 0;
+
+    while( ! feof( file ) ) // loop while not end of file
+    {
+        // extract current csv line
+        line = fgets( file );
+
+        // get ticker
+        Ticker = StrExtract( line, 1 );
+
+        if( Name() == Ticker )
+        {
+            // extract date and buy point
+			DateStr		= StrExtract( line, 0 );
+            RGSDate 	= StrToDateTime( DateStr );
+            RGSBP	  	= StrExtract( line, 4 );
+            RGSBP		= StrTrim( RGSBP, "$", 1 );
+            PivotPrice	= StrToNum( RGSBP );
+
+            // Check if breakout occurs
+            Breakout	= H > PivotPrice;
+
+            // verify date is correct
+            DateBuy		= dt == RGSDate;
+
+            // check 1% limit not breached
+            Limit = O < 1.01 * PivotPrice;
+
+            // remove sigscale values
+            for( i = index + 1; i < BarCount; i++ )
+				Buy = IIf(Buy == 99999, 0, Buy);
+            
+            // Buy signal if breakout occurs at current date
+            // note the buy signal is ORed with previous buy so that you build up the full buy array over the loop until EOF
+            Buy = Buy OR ( DateBuy AND Breakout AND Limit );
+
+            // fix the buy price to the pivot price
+            for( i = index + 1; i < BarCount; i++ )
+                if( Buy[i] )
+                {
+                    BuyPrice[i] = PivotPrice;
+                    index = i;
+                }
+                else
+                {
+                    BuyPrice[i] = 0;
+                }
+			
+            // stop settings
+            FirstProfitTarget	= 25;	// profit % on half
+            SecondProfitTarget	= 50; 	// profit % on half
+            TrailingStop 		= 50; 	// ultimate backup trailing stop
+            stopFrontInit		= 2;  	// front initial stop loss
+            stopBackInit		= 4;  	// back initial stop loss
+            smallSMA			= 5;	// SMAs for stops
+            bigSMA				= 50;	// SMA for stops
+            
+            // initializations to zero
+            stopFront			= 0;  	// moving stop on the front half
+            stopBack			= 0;  	// moving stop on the back half
+            stopTrail			= 0;	// trailing stop
+			priceatbuy 			= 0;	// buy price
+            highsincebuy 		= 0;	// high of trade since buy
+            barssincebuy 		= 0;	// trade length so far
+            highestclose		= 0;	// highest close of trade so far
+            profitPct			= 0;	// profit of open trade
+            speedstop			= 0;	// speestop value
+
+			// exit codes
+            sellfront			= False;
+            sellback			= False;
+            sellhalf25			= False;
+            sellhalf50			= False;
+            sellbalance			= False;
+            after14days			= False;
+            selltrail			= False;
+            sellvio3			= False;
+            sellvio5			= False;
+            
+            // this tracks the position size normalized to original size
+            positionfraction 	= 1;
+
+			// loop through bars to see
+            for( j = 0; j < BarCount - index; j++ )
+            {
+				i = index + j;
+				
+				Datenow = DateTimeToStr(dt[i]);
+				
+                // check if there is a buy signal at the current bar
+                if( priceatbuy == 0 AND Buy[ i ] )
+                {
+                    priceatbuy = BuyPrice[ i ];
+                    index = i;
+                }
+				
+				// process the sell guidance and stops for the current stock and RGS Source entry, assuming
+                if( priceatbuy > 0 AND NOT Buy[i])
+                {
+					// mark the price high (for close and high) and days in trade
+                    highsincebuy = Max( H[ i-1 ], highsincebuy );
+                    highestclose = Max( C[ i-1 ], highestclose );
+                    barssincebuy = BarsSince(Buy) + 1;
+                    
+					// initial stop loss
+					// front half stop
+					
+					stopFront = ( 1- stopFrontInit/100 )*priceatbuy;
+					 if (NOT sellfront AND L[i]  < stopFront[i])
+                    {
+						// s1et the flag to indicate front is sold
+						sellfront 		= True;
+						
+						// set the sell price to the stop assuming no slippage and scale out
+						BuyPrice[i] 	= stopFront;
+						Buy[i]			= sigScaleOut;
+						
+						// update fraction of position remaining
+						positionfraction /= 2;
+					}
+					
+					// back half stop
+
+					stopBack = ( 1- stopBackInit/100 )*priceatbuy;
+					 if (NOT sellback AND L[i]  < stopBack[i])
+                    {
+						// s1et the flag to indicate front is sold
+						sellback 		= True;
+						
+						// set the sell price to the stop assuming no slippage and scale out
+						BuyPrice[i] 	= stopBack;
+						Buy[i]			= sigScaleOut;
+						
+						// update fraction of position remaining
+						positionfraction /= 2;
+					}
+					
+					// MA Sell Following
+					// Using 200, 150, 50, 20, 10 and 5 SMAs,
+					// If low if above an average for >= 10 days or profits > 10%,
+					// it becomes a stop on a third
+					MA005 = L > MA(C, 5   );
+					MA010 = L > MA(C, 10  );
+					MA020 = L > MA(C, 20  );
+					MA050 = L > MA(C, 50  );
+					MA100 = L > MA(C, 100 );
+					MA150 = L > MA(C, 150 );
+					MA200 = L > MA(C, 200 );
+                }
+            }
+
+			shares = 16;
+            SetPositionSize( shares, spsShares );		// buy enough shares to sell half multiple times but that's it
+            
+            
+            if (sellfront)
+				SetPositionSize( shares/2, spsShares* ( Buy == sigScaleOut ) ); // scale out front or back
+			else if (sellfront AND sellback)
+				SetPositionSize( shares/2, spsShares* ( Buy == sigScaleOut ) ); // scale out front or back
+			else
+				SetPositionSize( 50, spsPercentOfPosition * ( Buy == sigScaleOut ) ); // scale out 50% of position
+        }
+    }
+}
+else
+{
+    printf( "ERROR: file can not be found (does not exist)" );
+}
+
+
+// remove sigscale values
+for( i = index + 1; i < BarCount; i++ )
+    Buy = IIf( Buy == 99999, 0, Buy );
+
+SetSortColumns( 3 );
+
+x = BarIndex();
+// close the file
+fclose( file );

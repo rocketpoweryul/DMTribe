@@ -1,0 +1,183 @@
+// Clean up the BroadList/ Interesting Stocks Watchlist for the weekend routine
+// Michael Angelo MUSTILLO, 2023-07-01
+// Amibroker 6.40.4
+
+// To be used in Exploration mode
+
+// include the functional library
+#include <TPT_Func_Lib.afl>
+#include_once "Formulas\Norgate Data\Norgate Data Functions.afl"
+
+function import2watchlist( file, wlnum )
+{
+    //file - full path to exported results form main exploration
+    //wlnum -  number of watchlist you need to populate
+    //rank_column - rank column location form your main exploration
+
+    fh = fopen( file, "r" );
+
+    // skip header
+    line = fgets( fh );
+
+
+    if( fh )
+    {
+        while( ! feof( fh ) )
+        {
+            line = fgets( fh ); // read a line of text
+            symbol = StrExtract( line , 0 );
+
+            CategoryAddSymbol( symbol , categoryWatchlist, wlnum );
+        }
+
+        fclose( fh );
+    }
+    else
+    {
+        Error( "ERROR: file can not be open" );
+    }
+    
+   
+}
+
+// get the watchlist ID for the "Interesting Stocks" wl
+IntStok 	= CategoryFind( "Interesting Stocks", categoryWatchlist );
+
+// stuff only done once at the beginning
+if( Status( "stocknum" ) == 0 )
+{
+	// erase the watchlist
+	// pull list from watchlist
+	list = CategoryGetSymbols( categoryWatchlist, IntStok );
+	// go through the watchlist and systematically delete every symbol from the IntStock wl
+	for( i = 0; ( sym = StrExtract( list, i ) ) != ""; i++ ) 
+		CategoryRemoveSymbol( sym, categoryWatchlist, IntStok );
+		
+	folder = "C:\\Users\\admin\\OneDrive\\Desktop\\temp\\";
+
+// DMT Bases
+    file 	= "DMTBases.csv";
+    wlnum 	= CategoryFind( "DMT Bases", categoryWatchlist );
+
+    import2watchlist( folder + file, wlnum );
+
+// DMT RS Accel
+    file 	= "DMTRSAccel.csv";
+    wlnum 	= CategoryFind( "DMT RS Accel", categoryWatchlist );
+
+    import2watchlist( folder + file, wlnum );
+
+// DMT RS NH
+    file 	= "DMTRSNH.csv";
+    wlnum 	= CategoryFind( "DMT Blue Dot", categoryWatchlist );
+
+    import2watchlist( folder + file, wlnum );
+
+// DMT RS NH
+    file 	= "DMTRSNH.csv";
+    wlnum 	= CategoryFind( "DMT Blue Dot", categoryWatchlist );
+
+    import2watchlist( folder + file, wlnum );
+}
+
+// Ticker
+Ticker = Name();
+
+// set initial value for flag that is set to true if it is in one of the watchlists identified below
+inWL = False;
+
+// set a counter of watchlist hits as well
+WLcount = 0;
+
+// check the "in watchlist" status of the stock for watchlist IDs 3 through 21 (DMT Bases to IBDSS Crazy SEP)
+for ( i = 3; i <= 21; i++ )
+{
+	// if in a watchlist set the inWL flag and count up one.
+	if ( InWatchList( i ) )
+	{
+		inWL = True;
+		WLcount++;
+	}
+}
+
+// if in the rocketpower select, include it regardless
+// get wl number
+rPSel 	= CategoryFind( "rocketPower Select", categoryWatchlist );
+
+// checkl rocketPower select list like the others above
+if ( InWatchList( rPSel ) )
+	{
+		InWL = True;
+		WLCount++;
+	}
+
+// Disqualifying parameters
+
+// Set initial flag for disqualification
+DSQL 	= False;
+
+// Not in a Stage 2 uptrend
+TF 		= TrendFilter( L, H, O, C, V );
+
+// flag
+DQ_TF	= NOT TF;
+
+// Dol Vol < 10 Mil
+
+// calculate dol vol
+dolvol 	= C * MA( V, Min( 50, BarCount ) );
+
+// flag
+DQ_DV	= dolvol < 10e6;
+
+// GICS RS < 50
+// get industry RS
+GID 	= GicsID(0);
+GID_RS 	= StaticVarGet( "GicsID_" + GID );
+
+//flag // DISABLED
+DQ_GR	= False; // GID_RS < 50;
+
+// RS < 85
+RS 		= StaticVarGet( "RS_" + Ticker );
+
+// flag
+DQ_RS	= RS < 85;
+
+// Fuel Tank < 0
+FTCapacity 	= Sum( V, 50 );
+FTAccumul 	= IIf( H - L == 0, 0, V * (( C - L ) - ( H - C )) / ( H - L ));
+FTFuel		= Sum( FTAccumul, 50 );
+
+CSMA50 	= MA( C, 50 );
+
+FuelTank = round( IIf( FTCapacity == 0, 0, FTFuel/FTCapacity ) * 100 ) * IIf( C < CSMA50, 1, CSMA50 / C) ;
+
+//flag // DISABLED
+DQ_FT 	= False;	// FuelTank < 0;
+
+// if in the exclusion watchlist
+// get the watchlist number
+ExclList = CategoryFind( "DMT EXCLUDE LIST",   categoryWatchlist );
+
+//flag
+DQ_EL	 = InWatchList(ExclList);	
+
+// consolidate
+DSQL = DQ_TF OR DQ_DV OR DQ_GR OR DQ_RS OR DQ_FT OR DQ_EL;
+
+// adjust inWL to account for no disqualification on a per bar basis
+inWL = inWL AND NOT DSQL;
+	
+// if the inWL flag is still true, add the stock to the watchlist (it only needs to appear once to get in the list)
+if ( LastValue( inWL ) )
+	CategoryAddSymbol( "", categoryWatchlist, IntStok );
+	
+// filter on stocks that make it onto the watchlist
+Filter = inWL;
+
+// add a column with the watchlist hit count
+AddColumn( WLcount, "WL Hits", 1.0 );
+AddTextColumn( GicsID(1), "GICS" );
+
+SetSortColumns(-3);
